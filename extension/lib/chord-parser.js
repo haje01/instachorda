@@ -42,5 +42,9 @@ export function parseChord(text) {
   const { quality, rest: afterQuality } = detectQuality(rest);
   const modifier = afterQuality.trim();
 
+  // 수식어 유효성: 내부 공백이 있거나 코드 루트 문자([A-G]) 를 포함하면
+  // 실제로는 "두 코드가 공백으로 붙은 것" 으로 간주하고 거부.
+  if (modifier && /[\sA-G]/.test(modifier)) return null;
+
   return { root, quality, modifier, bass };
 }

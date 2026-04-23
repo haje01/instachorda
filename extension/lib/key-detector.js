@@ -7,10 +7,10 @@
 //   - 입력에서 첫 코드 / 마지막 코드가 1번 슬롯에 있으면 가산점
 
 import { parseChord } from './chord-parser.js';
-import { getTable, normalizeRoot, SUPPORTED_KEYS } from './kantan-tables.js';
+import { getTable, rootsEqualBySemi, SUPPORTED_KEYS } from './kantan-tables.js';
 
 function matchesSlot(parsed, slot) {
-  if (normalizeRoot(parsed.root) !== normalizeRoot(slot.root)) return false;
+  if (!rootsEqualBySemi(parsed.root, slot.root)) return false;
   // 수식어가 있거나 퀄리티가 같으면 매칭
   if (parsed.modifier) return true;
   return parsed.quality === slot.quality;
@@ -31,8 +31,8 @@ function scoreKey(parsedChords, table) {
   if (parsedChords.length > 0) {
     const first = parsedChords[0];
     const last = parsedChords[parsedChords.length - 1];
-    if (normalizeRoot(first.root) === normalizeRoot(tonic.root)) score += 0.5;
-    if (normalizeRoot(last.root) === normalizeRoot(tonic.root)) score += 0.5;
+    if (rootsEqualBySemi(first.root, tonic.root)) score += 0.5;
+    if (rootsEqualBySemi(last.root, tonic.root)) score += 0.5;
   }
   return score;
 }

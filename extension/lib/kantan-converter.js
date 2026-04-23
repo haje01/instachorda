@@ -1,70 +1,93 @@
 // 표준 코드 -> KANTAN 숫자 표기 변환
 //
 // 규칙:
-//   1) 기본 키 테이블에서 root + quality 가 정확히 일치하는 슬롯을 찾으면 그 숫자로 변환
-//   2) 수식어(7, maj7, sus4 등)는 뒤에 [ ] 로 감싸서 덧붙임
-//   3) 루트만 일치하는 슬롯이 있고 현재 코드가 minor 이며 슬롯은 major 인 경우 숫자 + "~"
-//      (KANTAN 의 m -> ~ 스왑 규칙)
-//   4) 슬래시 코드는 각 파트를 변환 후 "/" 로 연결
-//   5) 변환 불가 시 null
+//   1) 기본 키 테이블의 슬롯(root + quality)이 정확히 일치하면 그 숫자
+//   2) 근음 일치, 입력=minor / 슬롯=major 이면 숫자 + "~" (~ 는 대괄호 밖)
+//   3) 근음 일치, 입력=major / 슬롯=minor 이고 수식어가 있으면 그냥 숫자
+//      (수식어가 퀄리티 차이를 흡수)
+//   4) 근음이 어느 슬롯에도 없으면 크로매틱:
+//        - 입력보다 반음 위 슬롯이 있으면 그 슬롯 + [b]
+//        - 없으면 입력보다 반음 아래 슬롯 + [#]
+//   5) 수식어는 대괄호 [ ] 안. 크로매틱 기호와 결합하면 같은 대괄호에
+//      (예: G키에서 Bb7 -> 3[b7])
+//   6) 슬래시 코드는 각 파트를 변환 후 "/" 로 연결
 
 import { parseChord } from './chord-parser.js';
-import { getTable, normalizeRoot } from './kantan-tables.js';
+import { getTable, semitoneOf, rootsEqualBySemi } from './kantan-tables.js';
 
-function rootsEqual(a, b) {
-  return normalizeRoot(a) === normalizeRoot(b);
-}
-
-// 파싱된 코드 객체 하나를 KANTAN 숫자 문자열로 변환
-// (수식어/베이스는 제외한 단일 숫자, 없으면 null)
-function convertCore(parsed, table) {
-  let rootOnlyNum = null;
-  // 1차: root + quality 모두 일치
+function lookup(parsed, table) {
+  let rootOnly = null;
   for (const [num, slot] of Object.entries(table)) {
-    if (rootsEqual(slot.root, parsed.root)) {
-      if (slot.quality === parsed.quality) return String(num);
-      if (rootOnlyNum === null) rootOnlyNum = num;
+    if (rootsEqualBySemi(slot.root, parsed.root)) {
+      if (slot.quality === parsed.quality) return { num: String(num), kind: 'exact' };
+      if (rootOnly === null) rootOnly = { num: String(num), slotQuality: slot.quality, kind: 'root-only' };
     }
   }
-  // 2차: 수식어가 있으면 퀄리티 불일치 무시 (수식어가 뉘앙스 전달)
-  if (rootOnlyNum !== null && parsed.modifier) return String(rootOnlyNum);
-  // 3차: 입력이 minor 이고 테이블의 동일 루트 슬롯이 major -> 숫자 + "~"
-  if (rootOnlyNum !== null && parsed.quality === 'min') {
-    const slot = table[rootOnlyNum];
-    if (slot.quality === 'maj') return `${rootOnlyNum}~`;
-  }
-  return null;
+  return rootOnly;
 }
 
-// 슬래시 베이스 루트 -> 숫자 (퀄리티 무관, 루트만 일치)
-function bassToNumber(bassRoot, table) {
+// 입력 근음과 반음 관계인 슬롯 찾기.
+// 우선순위: 반음 위 슬롯(입력은 그 슬롯의 b) > 반음 아래 슬롯(입력은 그 슬롯의 #)
+function chromaticLookup(root, table) {
+  const inputSemi = semitoneOf(root);
+  if (inputSemi === undefined) return null;
+  const above = (inputSemi + 1) % 12;
+  const below = (inputSemi + 11) % 12;
+  let belowMatch = null;
   for (const [num, slot] of Object.entries(table)) {
-    if (rootsEqual(slot.root, bassRoot)) return String(num);
+    const s = semitoneOf(slot.root);
+    if (s === above) return { num: String(num), shift: 'b' };
+    if (s === below && belowMatch === null) belowMatch = { num: String(num), shift: '#' };
   }
-  return null;
+  return belowMatch;
+}
+
+function bassToKantan(bassRoot, table) {
+  for (const [num, slot] of Object.entries(table)) {
+    if (rootsEqualBySemi(slot.root, bassRoot)) return String(num);
+  }
+  const chroma = chromaticLookup(bassRoot, table);
+  return chroma ? `${chroma.num}[${chroma.shift}]` : null;
 }
 
 export function toKantan(chordText, key) {
   const parsed = parseChord(chordText);
   if (!parsed) return null;
-
   const table = getTable(key);
   if (!table) return null;
 
-  const core = convertCore(parsed, table);
-  if (!core) return null;
+  let num = null;
+  let swap = false;
+  let shift = '';
 
-  let out = core;
-
-  // 수식어는 대괄호로
-  if (parsed.modifier) {
-    out += `[${parsed.modifier}]`;
+  const hit = lookup(parsed, table);
+  if (hit && hit.kind === 'exact') {
+    num = hit.num;
+  } else if (hit && hit.kind === 'root-only') {
+    num = hit.num;
+    if (parsed.quality === 'min' && hit.slotQuality === 'maj') {
+      swap = true;
+    } else if (parsed.quality === 'maj' && hit.slotQuality === 'min' && parsed.modifier) {
+      // 수식어가 퀄리티 차이 흡수
+    } else {
+      return null;
+    }
+  } else {
+    const chroma = chromaticLookup(parsed.root, table);
+    if (!chroma) return null;
+    num = chroma.num;
+    shift = chroma.shift;
+    if (parsed.quality === 'min') swap = true;
   }
 
-  // 슬래시 베이스: 루트만 매칭 (퀄리티 무관)
+  let out = num;
+  if (swap) out += '~';
+  const bracket = `${shift}${parsed.modifier}`;
+  if (bracket) out += `[${bracket}]`;
+
   if (parsed.bass) {
-    const bassNum = bassToNumber(parsed.bass, table);
-    out += bassNum ? `/${bassNum}` : `/${parsed.bass}`;
+    const bassOut = bassToKantan(parsed.bass, table);
+    out += bassOut ? `/${bassOut}` : `/${parsed.bass}`;
   }
 
   return out;

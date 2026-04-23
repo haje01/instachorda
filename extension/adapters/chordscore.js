@@ -72,49 +72,42 @@ function applyMode() {
   document.documentElement.dataset.icMode = state.mode;
 }
 
-// 한 var 에 대해 KANTAN 라벨을 붙이거나 갱신.
-// chordText 는 실제 변환에 쓸 "결합된 코드 텍스트" (슬래시 베이스가 다른 var 에 있을 때 합쳐진 값).
-function renderOne(varEl, chordText, key) {
+// badgeText 를 var 다음에 붙이거나 갱신. null/빈 문자열이면 배지 제거.
+function setBadge(varEl, badgeText) {
   let label = varEl.nextElementSibling;
   const hasLabel = label && label.classList && label.classList.contains(KANTAN_CLASS);
-  const kantan = toKantan(chordText, key);
 
-  if (kantan === null) {
+  if (!badgeText) {
     if (hasLabel) label.remove();
     varEl.removeAttribute(ATTR_LAST_TEXT);
     varEl.removeAttribute(ATTR_BOUND);
     return;
   }
 
-  const last = varEl.getAttribute(ATTR_LAST_TEXT);
-  if (last === chordText && hasLabel) return;
-
   if (hasLabel) {
-    label.textContent = kantan;
+    if (label.textContent !== badgeText) label.textContent = badgeText;
   } else {
     label = document.createElement('span');
     label.className = KANTAN_CLASS;
-    label.textContent = kantan;
+    label.textContent = badgeText;
     varEl.after(label);
   }
-  varEl.setAttribute(ATTR_LAST_TEXT, chordText);
+  varEl.setAttribute(ATTR_LAST_TEXT, badgeText);
   varEl.setAttribute(ATTR_BOUND, '1');
-}
-
-function clearBadge(varEl) {
-  const label = varEl.nextElementSibling;
-  if (label && label.classList && label.classList.contains(KANTAN_CLASS)) label.remove();
-  varEl.removeAttribute(ATTR_LAST_TEXT);
-  varEl.removeAttribute(ATTR_BOUND);
 }
 
 // "/G" 처럼 슬래시 베이스 단독 패턴
 const SLASH_BASS_RE = /^\/([A-G][#b]?)$/;
 
+// var 텍스트를 코드 토큰으로 분해. chordscore.com 에서 한 var 에 여러 코드가
+// 공백으로 들어있는 경우가 있어서 이를 분리.
+function tokenize(text) {
+  return text.split(/\s+/).filter(Boolean);
+}
+
 function renderAll() {
   ensureStyle();
   applyMode();
-  // 'original-only' 여도 배지를 만들어두면 토글 시 즉시 보이므로 항상 생성
   const key = computeKey();
   if (!key) {
     console.warn(`${LOG} 키 감지 실패 — 변환 건너뜀`);
@@ -122,25 +115,32 @@ function renderAll() {
   }
   const vars = collectChordVars();
 
-  // 다음 var 가 "/X" 패턴이면 현재 var 와 결합해 하나의 슬래시 코드로 처리.
-  // 이 경우 뒤 var 에는 배지를 붙이지 않음(원본 "/X" 는 그대로 보이게 둠).
   for (let i = 0; i < vars.length; i++) {
     const v = vars[i];
     const text = v.textContent.trim();
-    if (!text) { clearBadge(v); continue; }
+    if (!text) { setBadge(v, null); continue; }
 
-    const next = vars[i + 1];
-    const nextText = next ? next.textContent.trim() : '';
-    const slashMatch = nextText.match(SLASH_BASS_RE);
+    const tokens = tokenize(text);
 
-    if (slashMatch) {
-      const combined = text + '/' + slashMatch[1];
-      renderOne(v, combined, key);
-      clearBadge(next);
-      i++; // 다음 var 는 이미 처리됨
-    } else {
-      renderOne(v, text, key);
+    // 단일 토큰 + 다음 var 가 "/X" 단독이면 슬래시 코드로 결합
+    if (tokens.length === 1) {
+      const next = vars[i + 1];
+      const nextText = next ? next.textContent.trim() : '';
+      const slashMatch = nextText.match(SLASH_BASS_RE);
+      if (slashMatch) {
+        const combined = tokens[0] + '/' + slashMatch[1];
+        const kantan = toKantan(combined, key);
+        setBadge(v, kantan);
+        setBadge(next, null);
+        i++;
+        continue;
+      }
     }
+
+    // 토큰별로 변환 후 공백으로 연결. 변환 불가 토큰은 조용히 스킵
+    // (코드가 아닌 텍스트인 경우에 대응).
+    const parts = tokens.map(t => toKantan(t, key)).filter(k => k !== null);
+    setBadge(v, parts.length > 0 ? parts.join(' ') : null);
   }
 }
 

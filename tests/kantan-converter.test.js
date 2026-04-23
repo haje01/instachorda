@@ -29,21 +29,42 @@ test('슬래시 코드', () => {
   assert.equal(toKantan('F/A', 'C'), '4/6');
 });
 
-test('테이블에 없는 마이너는 m 대신 ~ 스왑', () => {
-  // C키 테이블에서 1번 슬롯은 C(major). Cm 을 만나면 1~
+test('테이블에 없는 마이너는 ~ 스왑 (대괄호 밖)', () => {
   assert.equal(toKantan('Cm', 'C'), '1~');
-  // 4번 슬롯은 F(major). Fm 을 만나면 4~
   assert.equal(toKantan('Fm', 'C'), '4~');
 });
 
-test('테이블에 없는 코드는 null', () => {
-  // C키에 없는 코드 (예: Ab major)
-  assert.equal(toKantan('Ab', 'C'), null);
+test('마이너 + 수식어는 "숫자~[수식어]" 형태', () => {
+  // G키 슬롯 5 는 D(major). Dm7 은 5~[7]
+  assert.equal(toKantan('Dm7', 'G'), '5~[7]');
+  // C키 슬롯 1 은 C(major). Cm7 은 1~[7]
+  assert.equal(toKantan('Cm7', 'C'), '1~[7]');
+});
+
+test('근음이 테이블에 없으면 가까운 슬롯 + [b] 또는 [#]', () => {
+  // G키는 슬롯 1~7 (G, Am, Bm, C, D, Em, F#m). Bb 는 B(슬롯3) 의 반음 아래.
+  assert.equal(toKantan('Bb', 'G'), '3[b]');
+});
+
+test('크로매틱 + 수식어는 같은 대괄호 안에 결합', () => {
+  // G키에서 Bb7 은 3[b7]
+  assert.equal(toKantan('Bb7', 'G'), '3[b7]');
+});
+
+test('근음도 슬롯도 없고 반음 주변도 없으면 null', () => {
+  // 모든 슬롯이 F# 를 포함하지 않는 가상 상황은 현 테이블에선 드묾.
+  // 대신 완전히 형식이 안 맞는 것으로 검증.
+  assert.equal(toKantan('Zxy', 'C'), null);
 });
 
 test('파싱 실패는 null', () => {
   assert.equal(toKantan('Hello', 'C'), null);
   assert.equal(toKantan('', 'C'), null);
+});
+
+test('공백으로 두 코드가 붙은 입력은 거부 (어댑터가 분리해야 함)', () => {
+  // 파서가 관대하게 받으면 "5[7 C]" 같은 잘못된 결과가 나옴. 거부해야 함.
+  assert.equal(toKantan('Dm7 C', 'G'), null);
 });
 
 test('알 수 없는 키는 null', () => {
