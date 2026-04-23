@@ -14,9 +14,12 @@ const KANTAN_CLASS = 'instachorda-kantan';
 const ATTR_BOUND = 'data-ic-bound';        // 어댑터가 추적중인 var
 const ATTR_LAST_TEXT = 'data-ic-last';     // 직전 처리한 텍스트 (변경 감지용)
 
+// 표시 모드: 'both' | 'original-only' | 'kantan-only'
+const DEFAULT_MODE = 'both';
+
 // 현재 상태
 const state = {
-  enabled: true,
+  mode: DEFAULT_MODE,
   userKey: null,   // 사용자 수동 지정 키 (null 이면 자동)
   detectedKey: null,
   observer: null,
@@ -47,66 +50,98 @@ function ensureStyle() {
     .${KANTAN_CLASS} {
       display: inline-block;
       margin-left: 2px;
-      padding: 0 3px;
-      font-size: 0.75em;
-      color: #c0392b;
-      background: rgba(192, 57, 43, 0.08);
+      padding: 0 4px;
+      font-size: 0.9em;
+      color: #22c55e;
+      background: rgba(34, 197, 94, 0.14);
       border-radius: 3px;
-      font-weight: 600;
+      font-weight: 700;
       vertical-align: baseline;
       user-select: none;
     }
-    .${KANTAN_CLASS}.ic-hidden { display: none !important; }
+    /* 모드: 기존 코드만 표시 -> KANTAN 배지 숨김 */
+    html[data-ic-mode="original-only"] .${KANTAN_CLASS} { display: none !important; }
+    /* 모드: KANTAN 만 표시 -> 원본 <var> 숨김 + 배지 간격 제거 */
+    html[data-ic-mode="kantan-only"] #note-container var { display: none !important; }
+    html[data-ic-mode="kantan-only"] .${KANTAN_CLASS} { margin-left: 0; }
   `;
   document.head.appendChild(s);
 }
 
-// 한 var 에 대해 KANTAN 라벨을 붙이거나 갱신
-function renderOne(varEl, key) {
-  const text = varEl.textContent.trim();
-  if (!text) return;
+function applyMode() {
+  document.documentElement.dataset.icMode = state.mode;
+}
 
-  const last = varEl.getAttribute(ATTR_LAST_TEXT);
+// 한 var 에 대해 KANTAN 라벨을 붙이거나 갱신.
+// chordText 는 실제 변환에 쓸 "결합된 코드 텍스트" (슬래시 베이스가 다른 var 에 있을 때 합쳐진 값).
+function renderOne(varEl, chordText, key) {
   let label = varEl.nextElementSibling;
   const hasLabel = label && label.classList && label.classList.contains(KANTAN_CLASS);
+  const kantan = toKantan(chordText, key);
 
-  // 텍스트 변화 없고 이미 라벨 있으면 스킵
-  if (last === text && hasLabel) return;
+  if (kantan === null) {
+    if (hasLabel) label.remove();
+    varEl.removeAttribute(ATTR_LAST_TEXT);
+    varEl.removeAttribute(ATTR_BOUND);
+    return;
+  }
 
-  const kantan = toKantan(text, key);
-  const display = kantan ?? '?';
+  const last = varEl.getAttribute(ATTR_LAST_TEXT);
+  if (last === chordText && hasLabel) return;
 
   if (hasLabel) {
-    label.textContent = display;
+    label.textContent = kantan;
   } else {
     label = document.createElement('span');
     label.className = KANTAN_CLASS;
-    label.textContent = display;
+    label.textContent = kantan;
     varEl.after(label);
   }
-  varEl.setAttribute(ATTR_LAST_TEXT, text);
+  varEl.setAttribute(ATTR_LAST_TEXT, chordText);
   varEl.setAttribute(ATTR_BOUND, '1');
 }
 
+function clearBadge(varEl) {
+  const label = varEl.nextElementSibling;
+  if (label && label.classList && label.classList.contains(KANTAN_CLASS)) label.remove();
+  varEl.removeAttribute(ATTR_LAST_TEXT);
+  varEl.removeAttribute(ATTR_BOUND);
+}
+
+// "/G" 처럼 슬래시 베이스 단독 패턴
+const SLASH_BASS_RE = /^\/([A-G][#b]?)$/;
+
 function renderAll() {
-  if (!state.enabled) {
-    hideAll();
-    return;
-  }
   ensureStyle();
+  applyMode();
+  // 'original-only' 여도 배지를 만들어두면 토글 시 즉시 보이므로 항상 생성
   const key = computeKey();
   if (!key) {
     console.warn(`${LOG} 키 감지 실패 — 변환 건너뜀`);
     return;
   }
   const vars = collectChordVars();
-  for (const v of vars) renderOne(v, key);
-  // 보이도록
-  document.querySelectorAll(`.${KANTAN_CLASS}.ic-hidden`).forEach(el => el.classList.remove('ic-hidden'));
-}
 
-function hideAll() {
-  document.querySelectorAll(`.${KANTAN_CLASS}`).forEach(el => el.classList.add('ic-hidden'));
+  // 다음 var 가 "/X" 패턴이면 현재 var 와 결합해 하나의 슬래시 코드로 처리.
+  // 이 경우 뒤 var 에는 배지를 붙이지 않음(원본 "/X" 는 그대로 보이게 둠).
+  for (let i = 0; i < vars.length; i++) {
+    const v = vars[i];
+    const text = v.textContent.trim();
+    if (!text) { clearBadge(v); continue; }
+
+    const next = vars[i + 1];
+    const nextText = next ? next.textContent.trim() : '';
+    const slashMatch = nextText.match(SLASH_BASS_RE);
+
+    if (slashMatch) {
+      const combined = text + '/' + slashMatch[1];
+      renderOne(v, combined, key);
+      clearBadge(next);
+      i++; // 다음 var 는 이미 처리됨
+    } else {
+      renderOne(v, text, key);
+    }
+  }
 }
 
 function removeAll() {
@@ -138,11 +173,10 @@ function stopObserver() {
   state.observer = null;
 }
 
-// 외부 API (팝업 메시지에서 호출 가능)
-export function setEnabled(on) {
-  state.enabled = !!on;
-  if (state.enabled) renderAll();
-  else hideAll();
+// 외부 API
+export function setMode(mode) {
+  state.mode = mode || DEFAULT_MODE;
+  applyMode();
 }
 
 export function setKey(key) {
@@ -153,18 +187,20 @@ export function setKey(key) {
 
 export function getStatus() {
   return {
-    enabled: state.enabled,
+    mode: state.mode,
     userKey: state.userKey,
     detectedKey: state.detectedKey,
     nodeCount: collectChordVars().length,
   };
 }
 
+const VALID_MODES = new Set(['both', 'original-only', 'kantan-only']);
+
 // chrome.storage 에서 설정 읽고 변경 감지
 async function syncFromStorage() {
   try {
-    const s = await chrome.storage.local.get(['enabled', 'userKey']);
-    if (typeof s.enabled === 'boolean') state.enabled = s.enabled;
+    const s = await chrome.storage.local.get(['mode', 'userKey']);
+    if (VALID_MODES.has(s.mode)) state.mode = s.mode;
     if (typeof s.userKey === 'string' || s.userKey === null) state.userKey = s.userKey || null;
   } catch (e) {
     // storage 권한 없거나 실패해도 기본값으로 계속
@@ -174,12 +210,15 @@ async function syncFromStorage() {
 function listenStorage() {
   chrome.storage?.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;
-    let changed = false;
-    if ('enabled' in changes) { state.enabled = !!changes.enabled.newValue; changed = true; }
-    if ('userKey' in changes) { state.userKey = changes.userKey.newValue || null; changed = true; }
-    if (changed) {
+    if ('mode' in changes) {
+      const v = changes.mode.newValue;
+      state.mode = VALID_MODES.has(v) ? v : DEFAULT_MODE;
+      applyMode();
+    }
+    if ('userKey' in changes) {
+      state.userKey = changes.userKey.newValue || null;
       removeAll();
-      if (state.enabled) renderAll();
+      renderAll();
     }
   });
 }

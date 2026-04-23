@@ -1,6 +1,9 @@
 // popup.js - chrome.storage.local 을 통해 content script 와 상태 공유
 
 const SUPPORTED_KEYS = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb'];
+const MODES = ['original-only', 'both', 'kantan-only'];
+const MODE_LABEL = { 'original-only': '코드만', 'both': '코드+KANTAN', 'kantan-only': 'KANTAN만' };
+const DEFAULT_MODE = 'both';
 
 function populateKeys() {
   const sel = document.getElementById('keySelect');
@@ -16,36 +19,36 @@ function setStatus(msg) {
   document.getElementById('status').textContent = msg;
 }
 
+function highlightMode(mode) {
+  const group = document.getElementById('modeGroup');
+  for (const btn of group.querySelectorAll('button')) {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  }
+}
+
 async function load() {
-  const s = await chrome.storage.local.get(['enabled', 'userKey']);
-  const enabled = s.enabled !== false; // 기본 on
+  const s = await chrome.storage.local.get(['mode', 'userKey']);
+  const mode = MODES.includes(s.mode) ? s.mode : DEFAULT_MODE;
   const userKey = s.userKey || 'auto';
-  document.getElementById('keySelect').value = userKey === null ? 'auto' : userKey;
-  document.getElementById('toggleBtn').textContent = enabled ? 'KANTAN 병기 OFF 로' : 'KANTAN 병기 ON 으로';
-  setStatus(enabled ? `활성 · 키: ${userKey}` : '비활성');
-}
-
-async function saveEnabled(v) {
-  await chrome.storage.local.set({ enabled: v });
-}
-
-async function saveKey(v) {
-  await chrome.storage.local.set({ userKey: v === 'auto' ? null : v });
+  highlightMode(mode);
+  document.getElementById('keySelect').value = userKey;
+  setStatus(`${MODE_LABEL[mode]} · 키: ${userKey}`);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   populateKeys();
   await load();
 
-  document.getElementById('toggleBtn').addEventListener('click', async () => {
-    const s = await chrome.storage.local.get(['enabled']);
-    const next = !(s.enabled !== false);
-    await saveEnabled(next);
+  document.getElementById('modeGroup').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    await chrome.storage.local.set({ mode: btn.dataset.mode });
     await load();
   });
 
   document.getElementById('keySelect').addEventListener('change', async (e) => {
-    await saveKey(e.target.value);
+    const v = e.target.value;
+    await chrome.storage.local.set({ userKey: v === 'auto' ? null : v });
     await load();
   });
 });
