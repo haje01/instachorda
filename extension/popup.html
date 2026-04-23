@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Instachorda</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; width: 240px; padding: 12px; margin: 0; }
+    h1 { font-size: 14px; margin: 0 0 8px 0; }
+    .row { margin: 6px 0; font-size: 12px; }
+    label { display: inline-block; width: 60px; color: #555; }
+    select, button { font-size: 12px; padding: 4px 6px; }
+    #status { color: #888; font-size: 11px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Instachorda</h1>
+  <div class="row">
+    <label>기본 키</label>
+    <select id="keySelect">
+      <option value="auto">자동</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>표시</label>
+    <button id="toggleBtn">KANTAN 병기 ON/OFF</button>
+  </div>
+  <div id="status">초기화 중...</div>
+  <script src="popup.js"></script>
+</body>
+</html>

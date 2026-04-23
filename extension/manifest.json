@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Instachorda",
+  "version": "0.1.0",
+  "description": "기타 코드 사이트의 표준 코드를 KANTAN 숫자 표기로 병기 (Instachord 연주용)",
+  "action": {
+    "default_title": "Instachorda",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chordscore.com/*", "https://*.chordscore.com/*"],
+      "js": ["content-bootstrap.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/*.js", "adapters/*.js", "content-main.js"],
+      "matches": ["https://chordscore.com/*", "https://*.chordscore.com/*"]
+    }
+  ],
+  "permissions": ["storage"]
+}
