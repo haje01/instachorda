@@ -3,7 +3,7 @@
 const SUPPORTED_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const MODES = ['original-only', 'both', 'kantan-only'];
 const MODE_LABEL = { 'original-only': '코드만', 'both': '코드+KANTAN', 'kantan-only': 'KANTAN만' };
-const DEFAULT_MODE = 'both';
+const DEFAULT_MODE = 'kantan-only';
 
 function populateKeys() {
   const sel = document.getElementById('keySelect');

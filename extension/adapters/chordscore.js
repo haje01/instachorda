@@ -28,7 +28,7 @@ function readText(el) {
 }
 
 // 표시 모드: 'both' | 'original-only' | 'kantan-only'
-const DEFAULT_MODE = 'both';
+const DEFAULT_MODE = 'kantan-only';
 
 // 현재 상태
 const state = {
@@ -215,7 +215,18 @@ function renderBadges(key, vars) {
   }
 }
 
+let lastUrl = '';
+
 function renderAll() {
+  // SPA 네비게이션 감지: URL 이 바뀌면 새 곡으로 간주하고 userKey 를 Auto 로 리셋
+  if (location.href !== lastUrl) {
+    const first = lastUrl === '';
+    lastUrl = location.href;
+    if (!first && state.userKey) {
+      resetUserKey();  // non-blocking, storage 이벤트로 다음 사이클에 반영됨
+    }
+  }
+
   // 자기가 만든 DOM 변경으로 MutationObserver 가 재호출되는 루프를 피하기 위해
   // 렌더링 동안은 observer 를 잠시 분리. 렌더 자체는 동기적으로 짧게 끝남.
   const obs = state.observer;
@@ -293,15 +304,22 @@ export function getStatus() {
 
 const VALID_MODES = new Set(['both', 'original-only', 'kantan-only']);
 
-// chrome.storage 에서 설정 읽고 변경 감지
+// chrome.storage 에서 mode 만 복원. userKey 는 페이지별로 초기화되므로 읽지 않음.
 async function syncFromStorage() {
   try {
-    const s = await chrome.storage.local.get(['mode', 'userKey']);
+    const s = await chrome.storage.local.get(['mode']);
     if (VALID_MODES.has(s.mode)) state.mode = s.mode;
-    if (typeof s.userKey === 'string' || s.userKey === null) state.userKey = s.userKey || null;
   } catch (e) {
-    // storage 권한 없거나 실패해도 기본값으로 계속
+    // storage 실패해도 기본값으로 계속
   }
+}
+
+// userKey 를 null(자동) 로 리셋 + 팝업에서도 Auto 로 보이도록 storage 정리
+async function resetUserKey() {
+  state.userKey = null;
+  try {
+    await chrome.storage.local.set({ userKey: null });
+  } catch {}
 }
 
 function listenStorage() {
@@ -323,6 +341,7 @@ function listenStorage() {
 export async function init() {
   console.log(`${LOG} init`);
   await syncFromStorage();
+  await resetUserKey();
   listenStorage();
   // 악보가 비동기 렌더될 수 있어서 첫 시도 후 observer 로 후속 대응
   renderAll();
