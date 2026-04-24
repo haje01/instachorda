@@ -1,7 +1,8 @@
 // 표준 기타 코드 텍스트를 구조화된 객체로 파싱
 // 예: "Am7/G" -> { root: 'A', quality: 'min', modifier: '7', bass: 'G' }
 
-const ROOT_PATTERN = /^([A-G])([#b]?)/;
+// 루트 문자는 대소문자 모두 허용 (예: "c7" 도 C 로 해석). 파싱 후 대문자로 정규화.
+const ROOT_PATTERN = /^([A-Ga-g])([#b]?)/;
 
 // 퀄리티 감지 우선순위: dim/aug/sus 는 따로 처리, 마이너는 'm' 뒤에 'a'(maj)가 오지 않는 경우
 function detectQuality(body) {
@@ -26,8 +27,9 @@ export function parseChord(text) {
   const rootMatch = trimmed.match(ROOT_PATTERN);
   if (!rootMatch) return null;
 
-  const root = rootMatch[1] + rootMatch[2];
-  let rest = trimmed.slice(root.length);
+  const root = rootMatch[1].toUpperCase() + rootMatch[2];
+  // 매칭한 원본 길이만큼 소비 (대소문자 섞여도 길이는 같음)
+  let rest = trimmed.slice(rootMatch[0].length);
 
   // 슬래시 베이스 분리
   let bass = null;
@@ -36,7 +38,7 @@ export function parseChord(text) {
     const bassPart = rest.slice(slashIdx + 1).trim();
     const bassMatch = bassPart.match(ROOT_PATTERN);
     if (bassMatch) {
-      bass = bassMatch[1] + bassMatch[2];
+      bass = bassMatch[1].toUpperCase() + bassMatch[2];
     }
     rest = rest.slice(0, slashIdx);
   }
@@ -44,8 +46,9 @@ export function parseChord(text) {
   const { quality, rest: afterQuality } = detectQuality(rest);
   const modifier = afterQuality.trim();
 
-  // 수식어 유효성: 내부 공백이 있거나 코드 루트 문자([A-G]) 를 포함하면
+  // 수식어 유효성: 내부 공백이 있거나 대문자 루트 문자([A-G]) 를 포함하면
   // 실제로는 "두 코드가 공백으로 붙은 것" 으로 간주하고 거부.
+  // 소문자는 maj/add/sus 등 정상 수식어의 일부이므로 금지하지 않음.
   if (modifier && /[\sA-G]/.test(modifier)) return null;
 
   return { root, quality, modifier, bass };

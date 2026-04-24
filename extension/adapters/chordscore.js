@@ -99,39 +99,38 @@ function ensureStyle() {
   if (document.getElementById('instachorda-style')) return;
   const s = document.createElement('style');
   s.id = 'instachorda-style';
+  // KANTAN 배지는 DOM sibling 이 아닌 CSS ::after 로 구현.
+  // (React 가 자기 트리 밖의 형제 요소를 re-render 시 청소하는 문제 회피)
   s.textContent = `
-    .${KANTAN_CLASS} {
-      display: inline-block;
+    #note-container var[data-kantan]:not([data-kantan=""])::after {
+      content: attr(data-kantan);
       margin-left: 2px;
       padding: 0 4px;
-      font-size: 1em;
       color: #22c55e;
       background: rgba(34, 197, 94, 0.14);
       border-radius: 3px;
       font-weight: 700;
-      vertical-align: baseline;
-      user-select: none;
       white-space: pre;          /* 원본의 여러 공백 보존 */
     }
-    /* 모드: 기존 코드만 표시 -> KANTAN 배지 숨김 */
-    html[data-ic-mode="original-only"] .${KANTAN_CLASS} { display: none !important; }
-    /* 모드: KANTAN 만 표시 -> <var> 의 원본 글자는 투명하게 두고 폭은 유지,
-       data-kantan 속성을 ::before 로 그 자리에 덧그려 위치/간격을 원본과 동일하게 보존.
-       별도 배지(span.${KANTAN_CLASS}) 는 숨김. */
+    /* 모드: 기존 코드만 표시 -> ::after 숨김 */
+    html[data-ic-mode="original-only"] #note-container var::after {
+      display: none !important;
+    }
+    /* 모드: KANTAN 만 -> 원본 글자는 visibility:hidden 으로 폭만 유지,
+       ::after 를 absolute 로 원본 자리에 덧그림 */
     html[data-ic-mode="kantan-only"] #note-container var {
-      color: transparent;
+      visibility: hidden;
       position: relative;
     }
-    html[data-ic-mode="kantan-only"] #note-container var::before {
-      content: attr(data-kantan);
+    html[data-ic-mode="kantan-only"] #note-container var[data-kantan]:not([data-kantan=""])::after {
+      visibility: visible;
       position: absolute;
       left: 0;
       top: 0;
-      color: #22c55e;
-      font-weight: 700;
-      white-space: pre;
+      margin-left: 0;
+      padding: 0;
+      background: none;
     }
-    html[data-ic-mode="kantan-only"] .${KANTAN_CLASS} { display: none !important; }
     /* "Original key" 아래 줄에 표시되는 감지 키 */
     .${KEY_INDICATOR_CLASS} {
       display: block;
@@ -147,28 +146,15 @@ function applyMode() {
   document.documentElement.dataset.icMode = state.mode;
 }
 
-// badgeText 를 var 다음에 붙이거나 갱신. null/빈 문자열이면 배지 제거.
-// var 의 data-kantan 속성도 같이 유지해서 kantan-only 모드의 ::before 에서 사용.
+// data-kantan 속성만 관리. 실제 표시는 CSS ::after 가 attr(data-kantan) 을 읽어 수행.
 function setBadge(varEl, badgeText) {
-  let label = varEl.nextElementSibling;
-  const hasLabel = label && label.classList && label.classList.contains(KANTAN_CLASS);
-
   if (!badgeText) {
-    if (hasLabel) label.remove();
     varEl.removeAttribute(ATTR_LAST_TEXT);
     varEl.removeAttribute(ATTR_BOUND);
     varEl.removeAttribute('data-kantan');
     return;
   }
-
-  if (hasLabel) {
-    if (label.textContent !== badgeText) label.textContent = badgeText;
-  } else {
-    label = document.createElement('span');
-    label.className = KANTAN_CLASS;
-    label.textContent = badgeText;
-    varEl.after(label);
-  }
+  if (varEl.getAttribute('data-kantan') === badgeText) return;
   varEl.setAttribute(ATTR_LAST_TEXT, badgeText);
   varEl.setAttribute(ATTR_BOUND, '1');
   varEl.setAttribute('data-kantan', badgeText);
@@ -254,10 +240,12 @@ function renderAll() {
 }
 
 function removeAll() {
+  // 이전 버전에서 남아있을 수 있는 sibling span 정리 (현재는 ::after 로 대체됨)
   document.querySelectorAll(`.${KANTAN_CLASS}`).forEach(el => el.remove());
   document.querySelectorAll(`[${ATTR_BOUND}]`).forEach(el => {
     el.removeAttribute(ATTR_BOUND);
     el.removeAttribute(ATTR_LAST_TEXT);
+    el.removeAttribute('data-kantan');
   });
 }
 

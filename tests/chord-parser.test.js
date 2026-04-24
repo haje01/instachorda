@@ -69,3 +69,11 @@ test('chordscore.com 의 위첨자 b (U+1D47) 정규화', () => {
   assert.deepEqual(parseChord('BᵇM7'), { root: 'Bb', quality: 'maj', modifier: 'M7', bass: null });
   assert.deepEqual(parseChord('Eᵇm'), { root: 'Eb', quality: 'min', modifier: '', bass: null });
 });
+
+test('소문자 루트도 허용 (대문자로 정규화)', () => {
+  assert.deepEqual(parseChord('c7'), { root: 'C', quality: 'maj', modifier: '7', bass: null });
+  assert.deepEqual(parseChord('a'), { root: 'A', quality: 'maj', modifier: '', bass: null });
+  assert.deepEqual(parseChord('f#m'), { root: 'F#', quality: 'min', modifier: '', bass: null });
+  // 슬래시 베이스도 소문자 허용
+  assert.deepEqual(parseChord('c/g'), { root: 'C', quality: 'maj', modifier: '', bass: 'G' });
+});
