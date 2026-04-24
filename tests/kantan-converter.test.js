@@ -41,14 +41,36 @@ test('마이너 + 수식어는 "숫자~[수식어]" 형태', () => {
   assert.equal(toKantan('Cm7', 'C'), '1~[7]');
 });
 
+test('메이저 코드가 마이너 슬롯에 매칭될 때도 ~ 스왑', () => {
+  // B키 슬롯 6 은 G#m. 입력이 G#(major) 이면 6~
+  assert.equal(toKantan('G#', 'B'), '6~');
+  // 수식어가 붙어도 동일
+  assert.equal(toKantan('G#7', 'B'), '6~[7]');
+});
+
+test('sus 수식어는 3도를 제거하므로 ~ 스왑 불필요', () => {
+  // C키 슬롯 2 는 Dm. Dsus4 는 2[sus4] (swap 없음)
+  assert.equal(toKantan('Dsus4', 'C'), '2[sus4]');
+  assert.equal(toKantan('Dsus2', 'C'), '2[sus2]');
+});
+
+test('dim / aug 는 수식어로 흡수', () => {
+  // C키 슬롯 7 은 Bm. Bdim 은 7[dim]
+  assert.equal(toKantan('Bdim', 'C'), '7[dim]');
+});
+
 test('근음이 테이블에 없으면 가까운 슬롯 + [b] 또는 [#]', () => {
-  // G키는 슬롯 1~7 (G, Am, Bm, C, D, Em, F#m). Bb 는 B(슬롯3) 의 반음 아래.
-  assert.equal(toKantan('Bb', 'G'), '3[b]');
+  // G 키에 Db 는 없음. D(슬롯 5) 의 반음 아래 -> 5[b]
+  assert.equal(toKantan('Db', 'G'), '5[b]');
 });
 
 test('크로매틱 + 수식어는 같은 대괄호 안에 결합', () => {
-  // G키에서 Bb7 은 3[b7]
-  assert.equal(toKantan('Bb7', 'G'), '3[b7]');
+  assert.equal(toKantan('Db7', 'G'), '5[b7]');
+});
+
+test('이명동음은 슬롯 매칭 (G 키 슬롯 8 은 A#, Bb 도 동일 음)', () => {
+  assert.equal(toKantan('Bb', 'G'), '8');
+  assert.equal(toKantan('A#', 'G'), '8');
 });
 
 test('근음도 슬롯도 없고 반음 주변도 없으면 null', () => {

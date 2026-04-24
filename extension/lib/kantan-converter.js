@@ -59,16 +59,26 @@ export function toKantan(chordText, key) {
   let num = null;
   let swap = false;
   let shift = '';
+  let qualityMod = '';   // dim/aug 같은 퀄리티가 수식어로 흡수될 때
+
+  const isSus = parsed.modifier && parsed.modifier.startsWith('sus');
 
   const hit = lookup(parsed, table);
   if (hit && hit.kind === 'exact') {
     num = hit.num;
   } else if (hit && hit.kind === 'root-only') {
     num = hit.num;
-    if (parsed.quality === 'min' && hit.slotQuality === 'maj') {
-      swap = true;
-    } else if (parsed.quality === 'maj' && hit.slotQuality === 'min' && parsed.modifier) {
-      // 수식어가 퀄리티 차이 흡수
+    const inQ = parsed.quality;
+    const slotQ = hit.slotQuality;
+    const isMajMinFlip =
+      (inQ === 'maj' && slotQ === 'min') ||
+      (inQ === 'min' && slotQ === 'maj');
+    if (isMajMinFlip) {
+      // sus 수식어는 3도를 제거하므로 swap 불필요
+      if (!isSus) swap = true;
+    } else if (inQ === 'dim' || inQ === 'aug') {
+      // 슬롯에 없는 퀄리티(dim/aug)는 수식어로 흡수
+      qualityMod = inQ;
     } else {
       return null;
     }
@@ -78,11 +88,12 @@ export function toKantan(chordText, key) {
     num = chroma.num;
     shift = chroma.shift;
     if (parsed.quality === 'min') swap = true;
+    else if (parsed.quality === 'dim' || parsed.quality === 'aug') qualityMod = parsed.quality;
   }
 
   let out = num;
   if (swap) out += '~';
-  const bracket = `${shift}${parsed.modifier}`;
+  const bracket = `${shift}${qualityMod}${parsed.modifier}`;
   if (bracket) out += `[${bracket}]`;
 
   if (parsed.bass) {

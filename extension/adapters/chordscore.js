@@ -11,6 +11,7 @@ import { detectKey } from '../lib/key-detector.js';
 
 const LOG = '[Instachorda/chordscore]';
 const KANTAN_CLASS = 'instachorda-kantan';
+const KEY_INDICATOR_CLASS = 'instachorda-key-indicator';
 const ATTR_BOUND = 'data-ic-bound';        // 어댑터가 추적중인 var
 const ATTR_LAST_TEXT = 'data-ic-last';     // 직전 처리한 텍스트 (변경 감지용)
 
@@ -34,12 +35,47 @@ function collectChordVars() {
   return Array.from(root.querySelectorAll('var'));
 }
 
+// 자동 키 감지 (multi-token <var> 도 토큰 단위로 풀어서 반영)
+function autoDetect() {
+  const tokens = [];
+  for (const v of collectChordVars()) {
+    const raw = v.textContent.trim();
+    if (!raw) continue;
+    for (const t of raw.split(/\s+/)) if (t) tokens.push(t);
+  }
+  return detectKey(tokens);
+}
+
 function computeKey() {
-  if (state.userKey) return state.userKey;
-  const texts = collectChordVars().map(v => v.textContent.trim()).filter(Boolean);
-  const k = detectKey(texts);
-  state.detectedKey = k;
-  return k;
+  // 수동 지정 여부와 관계없이 자동 감지 결과는 항상 갱신 (표시용)
+  state.detectedKey = autoDetect();
+  return state.userKey || state.detectedKey;
+}
+
+// "Original key: X" 텍스트가 있는 요소를 찾음 (css-XXXX 해시 클래스는 불안정해서 텍스트로 찾음)
+function findOriginalKeyEl() {
+  const spans = document.querySelectorAll('span');
+  for (const s of spans) {
+    const t = s.textContent.trim();
+    if (t.startsWith('Original key')) return s;
+  }
+  return null;
+}
+
+// 자동 감지된 KANTAN 키를 "Original key" 아래 줄에 표시
+function updateKeyIndicator() {
+  let indicator = document.querySelector(`.${KEY_INDICATOR_CLASS}`);
+  if (!indicator) {
+    const anchor = findOriginalKeyEl();
+    if (!anchor) return;
+    indicator = document.createElement('span');
+    indicator.className = KEY_INDICATOR_CLASS;
+    anchor.insertAdjacentElement('afterend', indicator);
+  }
+  const effective = state.userKey || state.detectedKey;
+  const tag = state.userKey ? '수동' : '자동';
+  const text = effective ? `KANTAN key: ${effective} (${tag})` : '';
+  if (indicator.textContent !== text) indicator.textContent = text;
 }
 
 function ensureStyle() {
@@ -58,12 +94,34 @@ function ensureStyle() {
       font-weight: 700;
       vertical-align: baseline;
       user-select: none;
+      white-space: pre;          /* 원본의 여러 공백 보존 */
     }
     /* 모드: 기존 코드만 표시 -> KANTAN 배지 숨김 */
     html[data-ic-mode="original-only"] .${KANTAN_CLASS} { display: none !important; }
-    /* 모드: KANTAN 만 표시 -> 원본 <var> 숨김 + 배지 간격 제거 */
-    html[data-ic-mode="kantan-only"] #note-container var { display: none !important; }
-    html[data-ic-mode="kantan-only"] .${KANTAN_CLASS} { margin-left: 0; }
+    /* 모드: KANTAN 만 표시 -> <var> 의 원본 글자는 투명하게 두고 폭은 유지,
+       data-kantan 속성을 ::before 로 그 자리에 덧그려 위치/간격을 원본과 동일하게 보존.
+       별도 배지(span.${KANTAN_CLASS}) 는 숨김. */
+    html[data-ic-mode="kantan-only"] #note-container var {
+      color: transparent;
+      position: relative;
+    }
+    html[data-ic-mode="kantan-only"] #note-container var::before {
+      content: attr(data-kantan);
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: #22c55e;
+      font-weight: 700;
+      white-space: pre;
+    }
+    html[data-ic-mode="kantan-only"] .${KANTAN_CLASS} { display: none !important; }
+    /* "Original key" 아래 줄에 표시되는 감지 키 */
+    .${KEY_INDICATOR_CLASS} {
+      display: block;
+      margin-top: 2px;
+      color: #22c55e;
+      font-weight: 600;
+    }
   `;
   document.head.appendChild(s);
 }
@@ -73,6 +131,7 @@ function applyMode() {
 }
 
 // badgeText 를 var 다음에 붙이거나 갱신. null/빈 문자열이면 배지 제거.
+// var 의 data-kantan 속성도 같이 유지해서 kantan-only 모드의 ::before 에서 사용.
 function setBadge(varEl, badgeText) {
   let label = varEl.nextElementSibling;
   const hasLabel = label && label.classList && label.classList.contains(KANTAN_CLASS);
@@ -81,6 +140,7 @@ function setBadge(varEl, badgeText) {
     if (hasLabel) label.remove();
     varEl.removeAttribute(ATTR_LAST_TEXT);
     varEl.removeAttribute(ATTR_BOUND);
+    varEl.removeAttribute('data-kantan');
     return;
   }
 
@@ -94,53 +154,85 @@ function setBadge(varEl, badgeText) {
   }
   varEl.setAttribute(ATTR_LAST_TEXT, badgeText);
   varEl.setAttribute(ATTR_BOUND, '1');
+  varEl.setAttribute('data-kantan', badgeText);
 }
 
 // "/G" 처럼 슬래시 베이스 단독 패턴
 const SLASH_BASS_RE = /^\/([A-G][#b]?)$/;
 
-// var 텍스트를 코드 토큰으로 분해. chordscore.com 에서 한 var 에 여러 코드가
-// 공백으로 들어있는 경우가 있어서 이를 분리.
-function tokenize(text) {
-  return text.split(/\s+/).filter(Boolean);
+// 여러 코드가 공백으로 이어진 텍스트를 공백은 그대로 두고 각 토큰만
+// KANTAN 으로 치환. 실패한 토큰은 원본 유지. 한 개도 변환 못하면 null.
+function translateTokensInPlace(text, key) {
+  let out = '';
+  let converted = false;
+  let i = 0;
+  while (i < text.length) {
+    const ws = text.slice(i).match(/^\s+/);
+    if (ws) { out += ws[0]; i += ws[0].length; continue; }
+    const tk = text.slice(i).match(/^\S+/);
+    if (!tk) break;
+    const tok = tk[0];
+    const k = toKantan(tok, key);
+    if (k) { out += k; converted = true; } else { out += tok; }
+    i += tok.length;
+  }
+  return converted ? out : null;
 }
 
-function renderAll() {
-  ensureStyle();
-  applyMode();
-  const key = computeKey();
-  if (!key) {
-    console.warn(`${LOG} 키 감지 실패 — 변환 건너뜀`);
-    return;
-  }
-  const vars = collectChordVars();
+// 단일 토큰인지 (공백 없는지) 판단
+function isSingleToken(text) {
+  return !/\s/.test(text);
+}
 
+function renderBadges(key, vars) {
   for (let i = 0; i < vars.length; i++) {
     const v = vars[i];
-    const text = v.textContent.trim();
-    if (!text) { setBadge(v, null); continue; }
-
-    const tokens = tokenize(text);
+    const raw = v.textContent;
+    const trimmed = raw.trim();
+    if (!trimmed) { setBadge(v, null); continue; }
 
     // 단일 토큰 + 다음 var 가 "/X" 단독이면 슬래시 코드로 결합
-    if (tokens.length === 1) {
+    if (isSingleToken(trimmed)) {
       const next = vars[i + 1];
       const nextText = next ? next.textContent.trim() : '';
       const slashMatch = nextText.match(SLASH_BASS_RE);
       if (slashMatch) {
-        const combined = tokens[0] + '/' + slashMatch[1];
-        const kantan = toKantan(combined, key);
-        setBadge(v, kantan);
+        const combined = trimmed + '/' + slashMatch[1];
+        setBadge(v, toKantan(combined, key));
         setBadge(next, null);
         i++;
         continue;
       }
+      setBadge(v, toKantan(trimmed, key));
+      continue;
     }
 
-    // 토큰별로 변환 후 공백으로 연결. 변환 불가 토큰은 조용히 스킵
-    // (코드가 아닌 텍스트인 경우에 대응).
-    const parts = tokens.map(t => toKantan(t, key)).filter(k => k !== null);
-    setBadge(v, parts.length > 0 ? parts.join(' ') : null);
+    // 멀티 토큰: 원본 공백을 그대로 유지하면서 토큰만 KANTAN 으로 치환
+    setBadge(v, translateTokensInPlace(raw, key));
+  }
+}
+
+function renderAll() {
+  // 자기가 만든 DOM 변경으로 MutationObserver 가 재호출되는 루프를 피하기 위해
+  // 렌더링 동안은 observer 를 잠시 분리. 렌더 자체는 동기적으로 짧게 끝남.
+  const obs = state.observer;
+  if (obs) obs.disconnect();
+  try {
+    ensureStyle();
+    applyMode();
+    const vars = collectChordVars();
+    if (vars.length === 0) return;
+    const key = computeKey();
+    updateKeyIndicator();
+    if (!key) {
+      console.warn(`${LOG} 키 감지 실패 — 변환 건너뜀`);
+      return;
+    }
+    renderBadges(key, vars);
+  } finally {
+    if (obs) {
+      obs.observe(getScoreRoot(), { childList: true, subtree: true, characterData: true });
+    }
   }
 }
 
