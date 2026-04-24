@@ -18,7 +18,9 @@ function detectQuality(body) {
 
 export function parseChord(text) {
   if (!text || typeof text !== 'string') return null;
-  const trimmed = text.trim();
+  // 유니코드 플랫/샾 변형을 ASCII b/# 로 정규화 (사이트별 렌더링 차이 대응).
+  // ♭(U+266D), ᵇ(U+1D47 MODIFIER LETTER SMALL B), ♯(U+266F).
+  const trimmed = text.replace(/[♭ᵇ]/g, 'b').replace(/♯/g, '#').trim();
   if (!trimmed) return null;
 
   const rootMatch = trimmed.match(ROOT_PATTERN);

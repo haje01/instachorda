@@ -57,3 +57,15 @@ test('빈 문자열은 null', () => {
 test('파싱 불가 문자열은 null', () => {
   assert.equal(parseChord('Hello'), null);
 });
+
+test('유니코드 플랫/샾 정규화', () => {
+  assert.deepEqual(parseChord('B♭'), { root: 'Bb', quality: 'maj', modifier: '', bass: null });
+  assert.deepEqual(parseChord('F♯m'), { root: 'F#', quality: 'min', modifier: '', bass: null });
+  assert.deepEqual(parseChord('E♭maj7'), { root: 'Eb', quality: 'maj', modifier: 'maj7', bass: null });
+});
+
+test('chordscore.com 의 위첨자 b (U+1D47) 정규화', () => {
+  assert.deepEqual(parseChord('Bᵇ'), { root: 'Bb', quality: 'maj', modifier: '', bass: null });
+  assert.deepEqual(parseChord('BᵇM7'), { root: 'Bb', quality: 'maj', modifier: 'M7', bass: null });
+  assert.deepEqual(parseChord('Eᵇm'), { root: 'Eb', quality: 'min', modifier: '', bass: null });
+});

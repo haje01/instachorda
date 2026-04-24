@@ -15,6 +15,18 @@ const KEY_INDICATOR_CLASS = 'instachorda-key-indicator';
 const ATTR_BOUND = 'data-ic-bound';        // 어댑터가 추적중인 var
 const ATTR_LAST_TEXT = 'data-ic-last';     // 직전 처리한 텍스트 (변경 감지용)
 
+// chordscore.com 은 플랫/샾을 유니코드 기호로 렌더함. 파서가 이해할 수 있는
+// ASCII b/# 로 정규화. 확인된 변형:
+//   ♭ (U+266D) — 음악 기호 플랫
+//   ᵇ (U+1D47) — MODIFIER LETTER SMALL B. chordscore 가 실제로 쓰는 위첨자 b
+//   ♯ (U+266F) — 음악 기호 샤프
+function normAccidentals(s) {
+  return s.replace(/[♭ᵇ]/g, 'b').replace(/♯/g, '#');
+}
+function readText(el) {
+  return normAccidentals(el.textContent);
+}
+
 // 표시 모드: 'both' | 'original-only' | 'kantan-only'
 const DEFAULT_MODE = 'both';
 
@@ -26,8 +38,13 @@ const state = {
   observer: null,
 };
 
+// #note-container 는 SPA 네비게이션 때 교체될 수 있으므로,
+// observer 는 그 위의 안정된 #root 를 감시한다.
 function getScoreRoot() {
   return document.querySelector('#note-container') || document.body;
+}
+function getObserverRoot() {
+  return document.getElementById('root') || document.body;
 }
 
 function collectChordVars() {
@@ -39,7 +56,7 @@ function collectChordVars() {
 function autoDetect() {
   const tokens = [];
   for (const v of collectChordVars()) {
-    const raw = v.textContent.trim();
+    const raw = readText(v).trim();
     if (!raw) continue;
     for (const t of raw.split(/\s+/)) if (t) tokens.push(t);
   }
@@ -87,7 +104,7 @@ function ensureStyle() {
       display: inline-block;
       margin-left: 2px;
       padding: 0 4px;
-      font-size: 0.9em;
+      font-size: 1em;
       color: #22c55e;
       background: rgba(34, 197, 94, 0.14);
       border-radius: 3px;
@@ -187,14 +204,14 @@ function isSingleToken(text) {
 function renderBadges(key, vars) {
   for (let i = 0; i < vars.length; i++) {
     const v = vars[i];
-    const raw = v.textContent;
+    const raw = readText(v);
     const trimmed = raw.trim();
     if (!trimmed) { setBadge(v, null); continue; }
 
     // 단일 토큰 + 다음 var 가 "/X" 단독이면 슬래시 코드로 결합
     if (isSingleToken(trimmed)) {
       const next = vars[i + 1];
-      const nextText = next ? next.textContent.trim() : '';
+      const nextText = next ? readText(next).trim() : '';
       const slashMatch = nextText.match(SLASH_BASS_RE);
       if (slashMatch) {
         const combined = trimmed + '/' + slashMatch[1];
@@ -231,7 +248,7 @@ function renderAll() {
     renderBadges(key, vars);
   } finally {
     if (obs) {
-      obs.observe(getScoreRoot(), { childList: true, subtree: true, characterData: true });
+      obs.observe(getObserverRoot(), { childList: true, subtree: true, characterData: true });
     }
   }
 }
@@ -244,10 +261,10 @@ function removeAll() {
   });
 }
 
-// DOM 변화 관찰 — 전조/페이지 갱신 시 자동 재변환
+// DOM 변화 관찰 — 전조/SPA 네비게이션/페이지 갱신 시 자동 재변환.
+// #note-container 는 새 노래 로드 시 통째로 교체될 수 있으므로 상위 #root 를 감시.
 function startObserver() {
   if (state.observer) return;
-  const root = getScoreRoot();
   let pending = false;
   state.observer = new MutationObserver(() => {
     if (pending) return;
@@ -257,7 +274,7 @@ function startObserver() {
       renderAll();
     });
   });
-  state.observer.observe(root, { childList: true, subtree: true, characterData: true });
+  state.observer.observe(getObserverRoot(), { childList: true, subtree: true, characterData: true });
 }
 
 function stopObserver() {
