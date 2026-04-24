@@ -1,6 +1,6 @@
 # Instachorda
 
-기타 코드 제공 사이트 ([chordscore.com](https://chordscore.com)) 의 표준 기타 코드를 [Instachord](https://www.instachord.com/) 연주용 **KANTAN 숫자 표기** 로 변환해 주는 크롬 확장.
+기타 코드 제공 사이트 ([chordscore.com](https://chordscore.com)) 의 표준 기타 코드를 [Instachord](https://en.instachord.com/) 연주용 **KANTAN 숫자 표기** 로 변환해 주는 크롬 확장.
 
 예 (C 키): `C G Am F` → `1 5 6 4`, `Dm7` → `2[7]`, `Cm` → `1~`, `C/G` → `1/5`
 
