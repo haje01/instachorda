@@ -21,7 +21,13 @@ export function parseChord(text) {
   if (!text || typeof text !== 'string') return null;
   // 유니코드 플랫/샾 변형을 ASCII b/# 로 정규화 (사이트별 렌더링 차이 대응).
   // ♭(U+266D), ᵇ(U+1D47 MODIFIER LETTER SMALL B), ♯(U+266F).
-  const trimmed = text.replace(/[♭ᵇ]/g, 'b').replace(/♯/g, '#').trim();
+  let trimmed = text.replace(/[♭ᵇ]/g, 'b').replace(/♯/g, '#').trim();
+  // 위첨자 마커(^) 제거, 괄호 텐션((13),(b9) 등) 무시,
+  // on-베이스(DonE) 를 슬래시 베이스(D/E) 로 정규화.
+  trimmed = trimmed
+    .replace(/\^/g, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/on([A-Ga-g][#b]?)/g, '/$1');
   if (!trimmed) return null;
 
   const rootMatch = trimmed.match(ROOT_PATTERN);

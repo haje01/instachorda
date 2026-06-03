@@ -77,3 +77,21 @@ test('소문자 루트도 허용 (대문자로 정규화)', () => {
   // 슬래시 베이스도 소문자 허용
   assert.deepEqual(parseChord('c/g'), { root: 'C', quality: 'maj', modifier: '', bass: 'G' });
 });
+
+test('괄호 텐션은 무시', () => {
+  // C7(13), C7(b9) 등 괄호 텐션 표기는 키와 무관한 장식이므로 제거
+  assert.deepEqual(parseChord('C7(13)'), { root: 'C', quality: 'maj', modifier: '7', bass: null });
+  assert.deepEqual(parseChord('G7(b9)'), { root: 'G', quality: 'maj', modifier: '7', bass: null });
+});
+
+test('위첨자 캐럿(^) 마커는 무시', () => {
+  // chordscore 등에서 위첨자를 ^ 로 렌더하는 경우 (예: C7^(13))
+  assert.deepEqual(parseChord('C7^(13)'), { root: 'C', quality: 'maj', modifier: '7', bass: null });
+});
+
+test('on-베이스 표기를 슬래시 베이스로', () => {
+  // 일본 악보의 "on" 베이스 표기 (DonE = D/E)
+  assert.deepEqual(parseChord('DonE'), { root: 'D', quality: 'maj', modifier: '', bass: 'E' });
+  assert.deepEqual(parseChord('AonC#'), { root: 'A', quality: 'maj', modifier: '', bass: 'C#' });
+  assert.deepEqual(parseChord('Bm7onE'), { root: 'B', quality: 'min', modifier: '7', bass: 'E' });
+});

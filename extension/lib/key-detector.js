@@ -3,6 +3,8 @@
 // 휴리스틱: 각 후보 키로 전체 코드를 KANTAN 으로 변환했을 때
 //   보조 마커(`~`, `[b]`, `[#]`)가 가장 적게 쓰이는 키를 선택.
 // [7], [maj7] 같은 순수 수식어는 키와 무관하므로 점수에 포함하지 않음.
+// 보너스 슬롯(8/9)은 임시 차용 코드용이므로 사용 시 약한 패널티 —
+//   토닉처럼 자주 나오는 코드가 보너스 슬롯에 배치되는 키를 피한다.
 
 import { parseChord } from './chord-parser.js';
 import { toKantan } from './kantan-converter.js';
@@ -15,6 +17,7 @@ function chordPenalty(chordText, key) {
   let p = 0;
   if (k.includes('~')) p += 1;          // 마이너 스왑
   if (/\[[^\]]*[#b]/.test(k)) p += 2;   // 크로매틱 대괄호
+  if (/^[89]/.test(k)) p += 0.5;        // 보너스 슬롯 (8/9) 사용
   return p;
 }
 

@@ -4,3 +4,12 @@ node_modules/
 dist/
 .openchrome/
 .gw/
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# 저작물 악보 PDF (테스트용 입력, 커밋 제외)
+*.pdf

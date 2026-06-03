@@ -8,7 +8,8 @@
 
 - **12개 기본 키 × 9 슬롯** 의 KANTAN 매핑 테이블 (Instachord 실제 배치 기준)
 - 표준 기타 코드 파싱 — 메이저/마이너/7/maj7/sus2/sus4/add/dim/aug, 슬래시 베이스, 이명동음(`B♭` = `Bb` = `A#` = `Bᵇ`), 소문자 루트(`c7`) 지원
-- **기본 키 자동 추론** — 각 후보 키로 전체 코드를 변환했을 때 보조 마커(`~`, `[b]`, `[#]`) 가 가장 적게 쓰이는 키를 선택. 토닉 보너스 포함
+  - on-베이스 표기(`DonE` = `D/E`), 괄호 텐션(`C7(13)` → `C7`), 위첨자 마커(`^`) 정규화 포함
+- **기본 키 자동 추론** — 각 후보 키로 전체 코드를 변환했을 때 보조 마커(`~`, `[b]`, `[#]`) 가 가장 적게 쓰이는 키를 선택. 토닉 보너스, 보너스 슬롯(8/9) 사용 패널티 포함 (자주 나오는 코드가 보너스 슬롯에 배치되는 키 회피)
 - chordscore.com 페이지에서 각 코드 위치에 **KANTAN 배지 렌더링** (CSS `::after` 기반)
 - **전조 / SPA 네비게이션 자동 감지** — MutationObserver 로 DOM 변화를, URL 변화로 새 곡 진입을 감지해 자동 재변환
 - **3-모드 표시 토글** — 코드만 / 코드+KANTAN / KANTAN만 (기본값: KANTAN만)
@@ -96,3 +97,20 @@ node --test tests/*.test.js
 - `chord-parser.test.js` — 코드 파싱 (루트/퀄리티/수식어/슬래시/유니코드/소문자)
 - `kantan-converter.test.js` — KANTAN 변환 규칙 (~ 스왑, 크로매틱, dim/aug, 이명동음)
 - `key-detector.test.js` — 기본 키 자동 추론 (마커 최소화 휴리스틱)
+
+## PDF 악보 변환 (Python CLI)
+
+PDF 악보에서 코드를 식별해 KANTAN 으로 변환하는 Python CLI 도 함께 제공합니다. 코어 변환 로직은 위 JS 모듈을 그대로 포팅한 것이고, PDF 처리는 PyMuPDF 기반입니다.
+
+```bash
+cd python && uv sync
+uv run instachorda convert path/to/score.pdf            # 식별된 코드 + KANTAN 표 출력
+uv run instachorda annotate score.pdf -o out.pdf        # 코드를 KANTAN 표기로 덮어쓴 새 PDF
+uv run instachorda chord --key C "C G Am F"             # PDF 없이 문자열만 변환
+```
+
+`annotate` 는 크롬 익스텐션과 동일하게 **주 KANTAN 키를 자동 식별**한 뒤, 원본 코드를 KANTAN 표기로 덮어쓰고 식별된 키를 1페이지에 라벨로 표시합니다.
+
+텍스트 레이어가 없는 (벡터/스캔) PDF — 예: ぷりんと楽譜 등 구매 악보 — 는 자동으로 OCR 로 폴백해 코드를 식별합니다. OCR 사용에는 [tesseract](https://github.com/tesseract-ocr/tesseract) 가 필요합니다 (`brew install tesseract`).
+
+자세한 내용은 [`python/README.md`](python/README.md) 참조.
