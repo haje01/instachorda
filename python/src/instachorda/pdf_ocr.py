@@ -31,6 +31,10 @@ from .pdf_extract import ChordHit
 # 렌더 해상도. 300 DPI 에서 코드 토큰 인식률이 가장 안정적이었음.
 DEFAULT_DPI = 300
 
+# 음표 마스킹 스트립 전용 고해상도. 스트립은 작은 영역이라 부담이 적고,
+# Coda 줄의 단독 'A' 같은 작은 글리프를 인접 텍스트에서 분리 인식하는 데 유리.
+MASK_DPI = 400
+
 # 단일 문자 코드('A', 'D' 등)는 가사/장식 오인식 가능성이 높아 고신뢰도만 수용.
 SINGLE_CHAR_MIN_CONF = 60.0
 
@@ -299,10 +303,10 @@ _STAFF_LINE_MAX_GAP = 15.0
 
 
 def is_music_glyph(drawing: dict, page_width: float) -> bool:
-    """벡터 드로잉이 음표 기보 요소(음표머리/기둥/빔/오선/점/이음줄)인지 판별.
+    """벡터 드로잉이 기보 요소(음표머리/기둥/빔/오선/점/이음줄/Coda·Segno)인지 판별.
 
-    OCR 전에 이 요소들을 흰색으로 덮으면, 음이 높아 코드 글자와 바짝 붙은
-    경우에도 코드 글자만 남아 인식률이 크게 오른다.
+    OCR 전에 이 요소들을 흰색으로 덮으면, 음이 높아 코드 글자와 바짝 붙거나
+    Coda/Segno 같은 기호가 코드 옆에 있어도 코드 글자만 남아 인식률이 오른다.
 
     코드 글자와의 구분 핵심: 음표 머리는 기울어진 타원이라 **가로가 세로보다
     넓지만**, 코드 글자(B/D/E 등)는 세로가 더 길다. 이 종횡비로 분리한다.
@@ -311,6 +315,7 @@ def is_music_glyph(drawing: dict, page_width: float) -> bool:
     w, h = r.width, r.height
     filled = drawing.get("fill") is not None
     has_curve = any(it[0] == "c" for it in drawing["items"])
+    n_items = len(drawing["items"])
 
     # 오선: 페이지 폭의 절반 이상인 가로선
     if h < 1.5 and w >= page_width * _STAFF_LINE_MIN_WIDTH_RATIO:
@@ -329,6 +334,12 @@ def is_music_glyph(drawing: dict, page_width: float) -> bool:
         return True
     # 음표 머리: 채워진 곡선이고 가로가 세로보다 넓은 작은 타원
     if filled and has_curve and 3 <= h <= 9 and 4 <= w <= 12 and w >= h:
+        return True
+    # Coda/Segno 기호(⊕, 𝄋): 원 + 십자/사선의 복잡한 채워진 원형 경로.
+    # 경로 세그먼트가 많고(>=40) 종횡비가 1 에 가까워, 세로로 매우 긴
+    # 음자리표와 구분된다. 코드 글자(세그먼트 적음)도 자연히 제외된다.
+    if filled and n_items >= 40 and 8 <= w <= 20 and 8 <= h <= 20 \
+            and 0.5 <= w / max(h, 0.1) <= 1.5:
         return True
     return False
 
@@ -556,18 +567,21 @@ def _ocr_page_words(page, dpi: int) -> tuple[list[OcrWord], list[float]]:
 
     # 패스 4: 음표 마스킹 후 오선별 스트립 (PSM 6 + 화이트리스트)
     # 원본 page 를 변경하지 않도록 사본 문서에 마스킹을 적용한다.
+    # 스트립은 작은 영역이라 고해상도(MASK_DPI)로 렌더해, Coda 줄의 단독 'A'
+    # 처럼 작은 글리프도 인접 텍스트('Coda')에 묻히지 않고 분리 인식되게 한다.
     if staff_tops:
+        mask_scale = MASK_DPI / 72.0
         with pymupdf.open() as masked_doc:
             masked_doc.insert_pdf(page.parent, from_page=page.number, to_page=page.number)
             masked_page = masked_doc[0]
             _mask_music_glyphs(masked_page)
             for top in staff_tops:
                 clip = _staff_strip(masked_page, top)
-                strip_png = masked_page.get_pixmap(dpi=dpi, clip=clip).tobytes("png")
+                strip_png = masked_page.get_pixmap(dpi=MASK_DPI, clip=clip).tobytes("png")
                 origin = (clip.x0, clip.y0)
                 passes.append(parse_tsv(
                     _run_tesseract_tsv(strip_png, psm="6", whitelist=_CHORD_WHITELIST),
-                    scale, origin,
+                    mask_scale, origin,
                 ))
 
     return merge_ocr_words(passes), staff_tops

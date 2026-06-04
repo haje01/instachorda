@@ -318,12 +318,12 @@ def test_긴_유효코드가_짧은것보다_우선():
 # 음표 글리프 분류 (is_music_glyph) — 마스킹 대상 판별
 # ---------------------------------------------------------------------------
 
-def _drawing(w, h, fill=True, curve=True, x=100.0, y=100.0):
+def _drawing(w, h, fill=True, curve=True, x=100.0, y=100.0, n_items=1):
     """is_music_glyph 테스트용 합성 드로잉 dict."""
     import pymupdf
     return {
         "rect": pymupdf.Rect(x, y, x + w, y + h),
-        "items": [("c",) if curve else ("l",)],
+        "items": [("c",) if curve else ("l",)] * n_items,
         "fill": (0.0, 0.0, 0.0) if fill else None,
     }
 
@@ -349,6 +349,21 @@ def test_기둥과_빔과_오선과_점은_마스킹대상():
     assert is_music_glyph(_drawing(17.8, 4.6), page_width=pw)    # 빔(beam): 넓고 낮은 가로 막대
     assert is_music_glyph(_drawing(481.0, 0.3), page_width=pw)   # 오선(staff line): 페이지 폭의 절반 이상
     assert is_music_glyph(_drawing(1.6, 1.6), page_width=pw)     # 점(dot): 아주 작은 원
+
+
+def test_coda_segno_과녁기호는_마스킹대상():
+    from instachorda.pdf_ocr import is_music_glyph
+    # Coda/Segno: 원 + 십자/사선의 채워진 원형 기호. 복잡한 경로(items 많음),
+    # 음표머리보다 크고 종횡비가 1 에 가깝다.
+    d = _drawing(10.8, 13.9, fill=True, curve=True, n_items=96)
+    assert is_music_glyph(d, page_width=595)
+
+
+def test_음자리표는_마스킹_안함():
+    from instachorda.pdf_ocr import is_music_glyph
+    # treble clef: 경로는 복잡하지만 세로로 매우 길어(종횡비 작음) Coda 기호와 구분
+    d = _drawing(12.6, 33.6, fill=True, curve=True, n_items=118)
+    assert not is_music_glyph(d, page_width=595)
 
 
 # ---------------------------------------------------------------------------
