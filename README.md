@@ -121,3 +121,25 @@ uv run instachorda chord --key C "C G Am F"             # PDF 없이 문자열�
 > 변환 결과는 **참고용**으로 보고, 중요한 부분은 원본과 대조해 수동 확인하세요. 텍스트 레이어가 있는 PDF 는 OCR 없이 정확히 처리됩니다.
 
 자세한 내용은 [`python/README.md`](python/README.md) 참조.
+
+## 고품질 OCR PDF 변환 (python2 / instachord)
+
+`python2/` 에는 OCR 품질 개선을 목표로 한 새 CLI 가 있습니다. 텍스트 레이어가 있으면 먼저 사용하고, 스캔/벡터 PDF 는 GPT Vision OCR 또는 tesseract OCR 로 코드 위치를 찾아 KANTAN 표기로 덮어쓴 PDF 를 저장합니다.
+
+```bash
+cd python2
+uv sync
+uv run instachord annotate path/to/score.pdf -o out.pdf
+uv run instachord convert path/to/score.pdf
+```
+
+GPT OCR 을 사용하려면 OpenAI API 키와 선택 의존성을 설정합니다.
+
+```bash
+cd python2
+uv sync --extra gpt
+export OPENAI_API_KEY=...
+uv run instachord annotate score.pdf -o out.pdf --ocr --ocr-engine gpt
+```
+
+자세한 내용은 [`python2/README.md`](python2/README.md) 참조.
