@@ -15,6 +15,42 @@
 import { parseChord } from './chord-parser.js';
 import { getTable, semitoneOf, rootsEqualBySemi } from './kantan-tables.js';
 
+// --- Instachord 연주용 코드 간략화 (항상 적용) ---
+//
+// Instachord 에서 실제로 누를 수 있는 표현은 한정적이다:
+//   퀄리티: maj / min(~) / dim / aug,  수식어: 6, 7, maj7, 9, sus4,  크로매틱: b/#
+// 그 밖의 복잡한 텐션·알터레이션(9 초과, b5/#5/b9/#9, add9, 11, 13 ...)은
+// 성격을 최대한 보존하는 선에서 위 집합으로 축약한다.
+//   - m7b5(하프디미니시드) 등 min+b5 계열 → dim 트라이어드
+//   - dim/aug 에 붙은 수식어(dim7, aug7) → 트라이어드 dim/aug
+//   - 도미넌트 계열(7 포함, 11/13, 알터레이션) → 7 (단, 단독 9 는 9 유지)
+//   - maj 계열(maj7/maj9 ...) → maj7
+//   - sus4 유지, 그 밖 sus(sus2 등) → 트라이어드
+//   - 6 계열 → 6,  그 외(add9 등) → 트라이어드
+function simplifyModifier(mod) {
+  if (!mod) return '';
+  if (/^maj/i.test(mod) || /^M7/.test(mod)) return 'maj7';
+  if (/^sus4/.test(mod)) return 'sus4';
+  if (/^sus/.test(mod)) return '';
+  if (/^6/.test(mod)) return '6';
+  if (mod === '9') return '9';
+  if (mod.includes('7')) return '7';
+  if (mod === '11' || mod === '13') return '7';
+  return '';
+}
+
+function simplifyChord(p) {
+  // 하프디미니시드(min + b5) → dim 트라이어드 (성격 보존)
+  if (p.quality === 'min' && /b5|-5/.test(p.modifier || '')) {
+    return { root: p.root, quality: 'dim', modifier: '', bass: p.bass };
+  }
+  // dim/aug 는 지원 퀄리티이므로 유지하되 붙은 수식어는 제거
+  if (p.quality === 'dim' || p.quality === 'aug') {
+    return { root: p.root, quality: p.quality, modifier: '', bass: p.bass };
+  }
+  return { root: p.root, quality: p.quality, modifier: simplifyModifier(p.modifier || ''), bass: p.bass };
+}
+
 function lookup(parsed, table) {
   let rootOnly = null;
   for (const [num, slot] of Object.entries(table)) {
@@ -51,8 +87,9 @@ function bassToKantan(bassRoot, table) {
 }
 
 export function toKantan(chordText, key) {
-  const parsed = parseChord(chordText);
-  if (!parsed) return null;
+  const raw = parseChord(chordText);
+  if (!raw) return null;
+  const parsed = simplifyChord(raw);
   const table = getTable(key);
   if (!table) return null;
 

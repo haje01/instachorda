@@ -48,10 +48,11 @@ test('메이저 코드가 마이너 슬롯에 매칭될 때도 ~ 스왑', () => 
   assert.equal(toKantan('G#7', 'B'), '6~[7]');
 });
 
-test('sus 수식어는 3도를 제거하므로 ~ 스왑 불필요', () => {
+test('sus4 는 3도를 제거하므로 ~ 스왑 불필요 (sus2 는 미지원 → 트라이어드)', () => {
   // C키 슬롯 2 는 Dm. Dsus4 는 2[sus4] (swap 없음)
   assert.equal(toKantan('Dsus4', 'C'), '2[sus4]');
-  assert.equal(toKantan('Dsus2', 'C'), '2[sus2]');
+  // sus2 는 Instachord 미지원이라 트라이어드로 축약 → maj/min 스왑이 적용됨
+  assert.equal(toKantan('Dsus2', 'C'), '2~');
 });
 
 test('dim / aug 는 수식어로 흡수', () => {
@@ -101,8 +102,35 @@ test('ultimate-guitar 실측 코드명 변환 (C키, "A Whiter Shade of Pale")',
   assert.equal(toKantan('Dm/C', 'C'), '2/1');
   assert.equal(toKantan('G/F', 'C'), '5/4');
   assert.equal(toKantan('Em/D', 'C'), '3/2');
-  // 텐션/수식어가 붙은 UG 코드명
+  // 텐션/수식어가 붙은 UG 코드명 (간략화 적용: 6add11 → 6)
   assert.equal(toKantan('G6', 'C'), '5[6]');
   assert.equal(toKantan('G7', 'C'), '5[7]');
-  assert.equal(toKantan('G6add11', 'C'), '5[6add11]');
+  assert.equal(toKantan('G6add11', 'C'), '5[6]');
+});
+
+test('Instachord 연주용 코드 간략화 (항상 적용, A키)', () => {
+  // m7b5(하프디미니시드) 계열은 dim 트라이어드로 (성격 보존)
+  assert.equal(toKantan('D#m7b5', 'A'), '5[bdim]');
+  assert.equal(toKantan('Bm7b5', 'A'), '2[dim]');
+  assert.equal(toKantan('Am7b5', 'A'), '1[dim]');
+  // 확장/알터레이션 도미넌트는 7 로, 단독 9 는 9 유지
+  assert.equal(toKantan('E13', 'A'), '5[7]');
+  assert.equal(toKantan('E7b9', 'A'), '5[7]');
+  assert.equal(toKantan('E11', 'A'), '5[7]');
+  assert.equal(toKantan('E9', 'A'), '5[9]');
+  // maj 계열은 maj7 로
+  assert.equal(toKantan('Emaj9', 'A'), '5[maj7]');
+  assert.equal(toKantan('Emaj7', 'A'), '5[maj7]');
+  // 6 / sus4 는 유지, sus2 / add9 는 트라이어드로
+  assert.equal(toKantan('D6', 'A'), '4[6]');
+  assert.equal(toKantan('Dsus4', 'A'), '4[sus4]');
+  assert.equal(toKantan('Dsus2', 'A'), '4');
+  assert.equal(toKantan('Dadd9', 'A'), '4');
+  // dim/aug 는 지원 퀄리티 — 붙은 수식어만 제거
+  assert.equal(toKantan('Cdim7', 'A'), '8[dim]');
+  assert.equal(toKantan('Caug', 'A'), '8[aug]');
+  // 지원 범위 안의 코드는 그대로 통과
+  assert.equal(toKantan('E7', 'A'), '5[7]');
+  assert.equal(toKantan('Am7', 'A'), '1~[7]');
+  assert.equal(toKantan('D#7', 'A'), '5[b7]');
 });

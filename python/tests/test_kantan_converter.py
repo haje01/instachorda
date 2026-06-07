@@ -45,9 +45,10 @@ def test_메이저가_마이너_슬롯에_매칭될_때_스왑():
     assert to_kantan("G#7", "B") == "6~[7]"
 
 
-def test_sus_는_스왑_불필요():
+def test_sus4_는_스왑_불필요_sus2_는_미지원_트라이어드():
     assert to_kantan("Dsus4", "C") == "2[sus4]"
-    assert to_kantan("Dsus2", "C") == "2[sus2]"
+    # sus2 는 Instachord 미지원이라 트라이어드로 축약 → maj/min 스왑 적용
+    assert to_kantan("Dsus2", "C") == "2~"
 
 
 def test_dim_aug_수식어_흡수():
@@ -82,3 +83,44 @@ def test_공백으로_두_코드가_붙으면_거부():
 
 def test_알_수_없는_키():
     assert to_kantan("C", "Z") is None
+
+
+def test_ultimate_guitar_실측_코드명():
+    # UG 는 슬래시 베이스를 한 토큰으로 제공 (결합 로직 없이 변환)
+    assert to_kantan("C/B", "C") == "1/7"
+    assert to_kantan("Am/G", "C") == "6/5"
+    assert to_kantan("F/E", "C") == "4/3"
+    assert to_kantan("Dm/C", "C") == "2/1"
+    assert to_kantan("G/F", "C") == "5/4"
+    assert to_kantan("Em/D", "C") == "3/2"
+    # 텐션/수식어가 붙은 UG 코드명 (간략화 적용: 6add11 → 6)
+    assert to_kantan("G6", "C") == "5[6]"
+    assert to_kantan("G7", "C") == "5[7]"
+    assert to_kantan("G6add11", "C") == "5[6]"
+
+
+def test_instachord_연주용_간략화():
+    # m7b5(하프디미니시드) 계열은 dim 트라이어드로 (성격 보존)
+    assert to_kantan("D#m7b5", "A") == "5[bdim]"
+    assert to_kantan("Bm7b5", "A") == "2[dim]"
+    assert to_kantan("Am7b5", "A") == "1[dim]"
+    # 확장/알터레이션 도미넌트는 7 로, 단독 9 는 9 유지
+    assert to_kantan("E13", "A") == "5[7]"
+    assert to_kantan("E7b9", "A") == "5[7]"
+    assert to_kantan("E11", "A") == "5[7]"
+    assert to_kantan("E9", "A") == "5[9]"
+    # maj 계열은 maj7 로
+    assert to_kantan("Emaj9", "A") == "5[maj7]"
+    assert to_kantan("Emaj7", "A") == "5[maj7]"
+    # 6 / sus4 는 유지, sus2 / add9 는 트라이어드로
+    assert to_kantan("D6", "A") == "4[6]"
+    assert to_kantan("Dsus4", "A") == "4[sus4]"
+    assert to_kantan("Dsus2", "A") == "4"
+    assert to_kantan("Dadd9", "A") == "4"
+    # dim/aug 는 지원 퀄리티 — 붙은 수식어만 제거
+    assert to_kantan("Cdim7", "A") == "8[dim]"
+    assert to_kantan("Caug", "A") == "8[aug]"
+    # 지원 범위 안의 코드는 그대로 통과
+    assert to_kantan("E7", "A") == "5[7]"
+    assert to_kantan("Am7", "A") == "1~[7]"
+    assert to_kantan("D#7", "A") == "5[b7]"
