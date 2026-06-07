@@ -40,8 +40,14 @@ function simplifyModifier(mod) {
 }
 
 function simplifyChord(p) {
-  // 하프디미니시드(min + b5) → dim 트라이어드 (성격 보존)
+  // 하프디미니시드(min + b5) 처리.
+  //   - m7b5 (단7도 포함) → m7: b5 만 버리고 단3도+단7도를 보존. 실연주 시
+  //     dim 트라이어드보다 잘 어울림 (예: E 키의 D#m7b5 → 7[7]).
+  //   - 7 없는 드문 mb5 표기는 디미니시드 트라이어드로.
   if (p.quality === 'min' && /b5|-5/.test(p.modifier || '')) {
+    if (/7/.test(p.modifier)) {
+      return { root: p.root, quality: 'min', modifier: '7', bass: p.bass };
+    }
     return { root: p.root, quality: 'dim', modifier: '', bass: p.bass };
   }
   // dim/aug 는 지원 퀄리티이므로 유지하되 붙은 수식어는 제거

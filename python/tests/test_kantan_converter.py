@@ -100,10 +100,13 @@ def test_ultimate_guitar_실측_코드명():
 
 
 def test_instachord_연주용_간략화():
-    # m7b5(하프디미니시드) 계열은 dim 트라이어드로 (성격 보존)
-    assert to_kantan("D#m7b5", "A") == "5[bdim]"
-    assert to_kantan("Bm7b5", "A") == "2[dim]"
-    assert to_kantan("Am7b5", "A") == "1[dim]"
+    # m7b5(하프디미니시드)는 m7 로 (b5 만 버리고 단3도+단7도 보존, 실연주 시 더 어울림)
+    assert to_kantan("D#m7b5", "E") == "7[7]"  # E키 슬롯7 = D#m → 7[7]
+    assert to_kantan("D#m7b5", "A") == "5~[b7]"
+    assert to_kantan("Bm7b5", "A") == "2[7]"
+    assert to_kantan("Am7b5", "A") == "1~[7]"
+    # 7 없는 드문 mb5 표기는 dim 트라이어드로
+    assert to_kantan("Cmb5", "C") == "1[dim]"
     # 확장/알터레이션 도미넌트는 7 로, 단독 9 는 9 유지
     assert to_kantan("E13", "A") == "5[7]"
     assert to_kantan("E7b9", "A") == "5[7]"
