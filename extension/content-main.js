@@ -9,6 +9,8 @@ const ADAPTERS = {
   'tabs.ultimate-guitar.com': './adapters/ultimate-guitar.js',
   'www.ultimate-guitar.com': './adapters/ultimate-guitar.js',
   'ultimate-guitar.com': './adapters/ultimate-guitar.js',
+  'www.songsterr.com': './adapters/songsterr.js',
+  'songsterr.com': './adapters/songsterr.js',
 };
 
 export async function init() {

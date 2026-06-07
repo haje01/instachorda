@@ -13,7 +13,9 @@
         "https://chordscore.com/*",
         "https://*.chordscore.com/*",
         "https://ultimate-guitar.com/*",
-        "https://*.ultimate-guitar.com/*"
+        "https://*.ultimate-guitar.com/*",
+        "https://songsterr.com/*",
+        "https://*.songsterr.com/*"
       ],
       "js": ["content-bootstrap.js"],
       "run_at": "document_idle"
@@ -26,7 +28,9 @@
         "https://chordscore.com/*",
         "https://*.chordscore.com/*",
         "https://ultimate-guitar.com/*",
-        "https://*.ultimate-guitar.com/*"
+        "https://*.ultimate-guitar.com/*",
+        "https://songsterr.com/*",
+        "https://*.songsterr.com/*"
       ]
     }
   ],

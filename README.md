@@ -1,6 +1,6 @@
 # Instachorda
 
-기타 코드 제공 사이트 ([chordscore.com](https://chordscore.com), [ultimate-guitar.com](https://ultimate-guitar.com)) 의 표준 기타 코드를 [Instachord](https://en.instachord.com/) 연주용 **KANTAN 숫자 표기** 로 변환해 주는 크롬 확장.
+기타 코드 제공 사이트 ([chordscore.com](https://chordscore.com), [ultimate-guitar.com](https://ultimate-guitar.com), [songsterr.com](https://songsterr.com)) 의 표준 기타 코드를 [Instachord](https://en.instachord.com/) 연주용 **KANTAN 숫자 표기** 로 변환해 주는 크롬 확장.
 
 예 (C 키): `C G Am F` → `1 5 6 4`, `Dm7` → `2[7]`, `Cm` → `1~`, `C/G` → `1/5`
 
@@ -11,11 +11,11 @@
   - on-베이스 표기(`DonE` = `D/E`), 괄호 텐션(`C7(13)` → `C7`), 위첨자 마커(`^`) 정규화 포함
 - **기본 키 자동 추론** — 각 후보 키로 전체 코드를 변환했을 때 보조 마커(`~`, `[b]`, `[#]`) 가 가장 적게 쓰이는 키를 선택. 토닉 보너스, 보너스 슬롯(8/9) 사용 패널티 포함 (자주 나오는 코드가 보너스 슬롯에 배치되는 키 회피)
 - **Instachord 연주용 코드 간략화 (항상 적용)** — 복잡한 텐션·알터레이션(`m7b5`, `13`, `add9` 등)을 연주 가능한 표현으로 축약. 예: `D#m7b5`(E 키) → `7[7]`. 자세한 규칙은 아래 KANTAN 표기 규칙 참고
-- 지원 사이트(chordscore.com, ultimate-guitar.com) 페이지에서 각 코드 위치에 **KANTAN 배지 렌더링** (CSS `::after` 기반)
+- 지원 사이트(chordscore.com, ultimate-guitar.com, songsterr.com) 페이지에서 각 코드 위치에 **KANTAN 배지 렌더링** (CSS `::after` 기반)
 - **전조 / SPA 네비게이션 자동 감지** — MutationObserver 로 DOM 변화를, URL 변화로 새 곡 진입을 감지해 자동 재변환
 - **3-모드 표시 토글** — 코드만 / 코드+KANTAN / KANTAN만 (기본값: KANTAN만)
 - 새 곡 진입 시 **기본 키는 자동(Auto) 으로 리셋** (사용자의 수동 지정은 해당 페이지 동안만 유지)
-- 페이지 상단 "Original key" 아래에 **감지된 KANTAN 키 표시**
+- 곡 제목/키 표시 근처에 **감지된 KANTAN 키 표시** (chordscore 는 "Original key" 아래, ultimate-guitar·songsterr 는 곡 제목 아래)
 
 ## KANTAN 표기 규칙
 
@@ -56,7 +56,8 @@ instachorda/
 │   ├── popup.html / popup.js    # 팝업 UI (모드 토글, 키 수동 지정)
 │   ├── adapters/
 │   │   ├── chordscore.js        # chordscore.com 전용 어댑터
-│   │   └── ultimate-guitar.js   # ultimate-guitar.com 전용 어댑터
+│   │   ├── ultimate-guitar.js   # ultimate-guitar.com 전용 어댑터
+│   │   └── songsterr.js         # songsterr.com 전용 어댑터
 │   └── lib/                     # 코어 로직 (사이트 무관)
 │       ├── chord-parser.js      # 표준 코드 텍스트 → 구조화 객체
 │       ├── kantan-converter.js  # 코드 → KANTAN 숫자 표기
@@ -77,7 +78,7 @@ instachorda/
 1. Chrome 주소창에 `chrome://extensions` 접속
 2. 우상단 **개발자 모드** 토글 ON
 3. **압축해제된 확장 프로그램 로드** 클릭 → 이 저장소의 `extension/` 폴더 선택
-4. chordscore.com 또는 ultimate-guitar.com 의 곡 페이지로 이동. 각 코드 위치에 녹색 KANTAN 배지가 표시되면 성공
+4. chordscore.com / ultimate-guitar.com / songsterr.com 의 곡 페이지로 이동. 각 코드 위치에 녹색 KANTAN 배지가 표시되면 성공
 5. 확장 아이콘(퍼즐 조각) 클릭 → **Instachorda 팝업** 에서 모드/키 전환
 
 ### 팝업
@@ -89,10 +90,11 @@ instachorda/
 
 ### 사이트 지원 범위
 
-현재 **chordscore.com** 과 **ultimate-guitar.com** (무료 코드 탭) 지원. 두 사이트는 DOM 구조가 다르므로 각각 전용 어댑터로 격리:
+현재 **chordscore.com**, **ultimate-guitar.com**(무료 코드 탭), **songsterr.com**(코드 보기) 지원. 사이트마다 DOM 구조가 다르므로 각각 전용 어댑터로 격리:
 
 - **chordscore.com** — 코드가 `<var>` 태그에 담기고, 플랫/샾을 유니코드 기호(`ᵇ`/`♯`)로 렌더. 슬래시 베이스가 별도 `<var>` 로 쪼개져 어댑터가 결합.
 - **ultimate-guitar.com** — 코드가 모노스페이스 `<pre>` 안 `<span data-name="...">` 에 담기며, 코드명이 `data-name` 속성에 그대로 들어있음. 슬래시 베이스(`Am/G`)도 한 span 에 통째로 담김. `data-name` 을 단일 진실 소스로 사용. 코드 `<span>` 이 없는 탭 악보/Pro 페이지에서는 자동으로 동작하지 않음. 흰 배경이라 배지 색은 어두운 초록(`#15803d`). UG 가 코드 span 의 `::after` 에 `opacity:0.1` 을 걸어두므로 배지 CSS 에서 `opacity:1` 로 복구해야 함(안 하면 배지가 거의 안 보임).
+- **songsterr.com** — 각 코드는 `<label data-chord="C">` 형태이며 코드명이 `data-chord` 속성에 담김(샾은 유니코드 `♯`). 슬래시 베이스도 한 label. 가사 줄은 코드가 음절 **위 줄**에 쌓이는 컬럼 구조라, 원본 코드 label 의 박스(코드 행 높이)를 `visibility:hidden` 으로 유지한 채 `::after` 를 absolute 로 덧그려 KANTAN 을 코드 자리에 표시(label 내부 span 을 `display:none` 으로 지우면 코드 행이 사라져 KANTAN 이 가사와 겹침). 흰 배경이라 배지 색은 어두운 초록(`#15803d`). 키 인디케이터는 `h1`(flex 컨테이너) 바로 뒤에 블록으로 삽입해 제목 아래 줄에 표시.
 
 다른 기타 코드 사이트는 `extension/adapters/` 에 동일한 인터페이스(`init`/`setMode`/`setKey`/`getStatus`)로 어댑터를 추가하고, `content-main.js` 의 `ADAPTERS` 맵과 `manifest.json` 의 `matches`/`web_accessible_resources` 에 도메인을 등록하면 지원 가능.
 
