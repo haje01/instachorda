@@ -6,6 +6,9 @@ const LOG = '[Instachorda]';
 const ADAPTERS = {
   'chordscore.com': './adapters/chordscore.js',
   'www.chordscore.com': './adapters/chordscore.js',
+  'tabs.ultimate-guitar.com': './adapters/ultimate-guitar.js',
+  'www.ultimate-guitar.com': './adapters/ultimate-guitar.js',
+  'ultimate-guitar.com': './adapters/ultimate-guitar.js',
 };
 
 export async function init() {

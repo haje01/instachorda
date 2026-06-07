@@ -92,3 +92,17 @@ test('공백으로 두 코드가 붙은 입력은 거부 (어댑터가 분리해
 test('알 수 없는 키는 null', () => {
   assert.equal(toKantan('C', 'Z'), null);
 });
+
+test('ultimate-guitar 실측 코드명 변환 (C키, "A Whiter Shade of Pale")', () => {
+  // UG 는 슬래시 베이스를 한 토큰(예: "Am/G")으로 제공. 결합 로직 없이 그대로 변환되어야 함.
+  assert.equal(toKantan('C/B', 'C'), '1/7');
+  assert.equal(toKantan('Am/G', 'C'), '6/5');
+  assert.equal(toKantan('F/E', 'C'), '4/3');
+  assert.equal(toKantan('Dm/C', 'C'), '2/1');
+  assert.equal(toKantan('G/F', 'C'), '5/4');
+  assert.equal(toKantan('Em/D', 'C'), '3/2');
+  // 텐션/수식어가 붙은 UG 코드명
+  assert.equal(toKantan('G6', 'C'), '5[6]');
+  assert.equal(toKantan('G7', 'C'), '5[7]');
+  assert.equal(toKantan('G6add11', 'C'), '5[6add11]');
+});

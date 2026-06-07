@@ -9,7 +9,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://chordscore.com/*", "https://*.chordscore.com/*"],
+      "matches": [
+        "https://chordscore.com/*",
+        "https://*.chordscore.com/*",
+        "https://ultimate-guitar.com/*",
+        "https://*.ultimate-guitar.com/*"
+      ],
       "js": ["content-bootstrap.js"],
       "run_at": "document_idle"
     }
@@ -17,7 +22,12 @@
   "web_accessible_resources": [
     {
       "resources": ["lib/*.js", "adapters/*.js", "content-main.js"],
-      "matches": ["https://chordscore.com/*", "https://*.chordscore.com/*"]
+      "matches": [
+        "https://chordscore.com/*",
+        "https://*.chordscore.com/*",
+        "https://ultimate-guitar.com/*",
+        "https://*.ultimate-guitar.com/*"
+      ]
     }
   ],
   "permissions": ["storage"]

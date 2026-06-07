@@ -61,3 +61,9 @@ test('세컨더리 도미넌트가 많아도 토닉 중심 키 선호', () => {
   ];
   assert.equal(detectKey(chords), 'A');
 });
+
+test('ultimate-guitar 슬래시-베이스 곡 자동 키 추론 (C)', () => {
+  // "A Whiter Shade of Pale" 도입부. UG 는 슬래시 베이스를 한 토큰으로 제공.
+  const chords = ['C', 'C/B', 'Am', 'Am/G', 'F', 'F/E', 'Dm', 'Dm/C', 'G', 'G/F', 'Em', 'Em/D'];
+  assert.equal(detectKey(chords), 'C');
+});
