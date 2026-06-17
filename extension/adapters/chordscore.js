@@ -187,24 +187,26 @@ function untagWhiteBars() {
     .forEach((e) => e.removeAttribute(ATTR_PRINT_BAR));
 }
 
-// chordscore 악보는 가사가 고정 픽셀 폭(width="394") + 공백 span 으로 정렬돼 있어,
-// 인쇄 용지 폭이 화면보다 좁으면 블록이 다르게 wrap 되며 가사가 꼬인다(확장 없이도 발생).
-// 화면에서의 폭을 인쇄에서도 그대로 고정해 reflow 를 막고, zoom 으로 용지에 맞게 축소.
-// (zoom 은 transform:scale 과 달리 다중 페이지 분할이 정상 동작)
-const PRINT_TARGET_WIDTH = 700;  // A4/Letter 인쇄 가능 폭 근사 (px @96dpi, 우측 여유)
+// 인쇄 글자/줄 밀도 조절 (브라우저 창 크기와 무관하게 일정).
+//   PRINT_PAGE_WIDTH: 세로 용지 인쇄 가능 폭(px, 좌우 10mm 여백 기준 A4 ~719/Letter ~740)
+//   PRINT_TEXT_SCALE: 글자 크기(화면 대비). 작을수록 글자가 작아지고 페이지당 줄이 많아짐.
+// 레이아웃 폭 = PAGE_WIDTH / TEXT_SCALE 로 잡아, zoom(TEXT_SCALE) 적용 후 정확히
+// 페이지 폭을 채운다(가로 잘림 없음). zoom 은 본문을 block+inline-block 으로 바꾼
+// 덕에 다중 페이지 분할이 정상 동작한다.
+const PRINT_PAGE_WIDTH = 700;
+const PRINT_TEXT_SCALE = 0.75;
 function scaleForPrint() {
   const root = document.querySelector('#note-container');
   if (!root) return;
-  const w = root.offsetWidth;  // 화면 정상 레이아웃 폭 (DOM 변경 전에 측정)
-  if (!w) return;
-  root.style.setProperty('width', `${w}px`, 'important');
-  root.style.setProperty('zoom', String(Math.min(1, PRINT_TARGET_WIDTH / w)), 'important');
+  const layoutWidth = Math.round(PRINT_PAGE_WIDTH / PRINT_TEXT_SCALE);
+  root.style.setProperty('width', `${layoutWidth}px`, 'important');
+  root.style.setProperty('zoom', String(PRINT_TEXT_SCALE), 'important');
 }
 function unscaleForPrint() {
   const root = document.querySelector('#note-container');
   if (!root) return;
   root.style.removeProperty('width');
-  root.style.removeProperty('zoom');
+  root.style.removeProperty('zoom');  // 이전 버전 잔재 정리
 }
 
 // 인쇄 격리를 beforeprint/afterprint 에 연결.
@@ -297,10 +299,12 @@ function ensureStyle() {
 
     /* === 인쇄 (악보만 깔끔하게) === */
     @media print {
-      /* 2페이지 이후는 상단 여백 넉넉히(붙는 문제 방지).
-         1페이지는 타이틀이 상단 공간을 채우므로 작게 — 안 그러면 첫 구절이
-         page1 에 못 들어가 통째로 2페이지로 밀려남(break-inside:avoid) */
-      @page { margin: 18mm 10mm 12mm; }
+      /* 세로 용지. 모든 줄을 PRINT_REF_WIDTH(700px) 폭으로 고정해 화면 전체 크기로
+         인쇄(글자 안 작아짐), 긴 줄은 다음 줄로 접힘.
+         2페이지 이후는 상단 여백 넉넉히(붙는 문제 방지), 1페이지는 타이틀이
+         상단을 채우므로 작게 — 안 그러면 첫 구절이 page1 에 못 들어가 통째로
+         2페이지로 밀려남(break-inside:avoid) */
+      @page { margin: 16mm 10mm 12mm; }
       @page :first { margin-top: 10mm; }
       /* 인쇄 직전 doPrint() 가 #note-container 조상 체인의 형제들에 표시한 속성 */
       [${ATTR_PRINT_HIDE}] { display: none !important; }
@@ -331,7 +335,7 @@ function ensureStyle() {
          (긴 곡이 1페이지에 타이틀만 남는 원인). 줄바꿈 레이아웃은 유지하면서
          페이지 분할이 되도록 block + 자식 inline-block 으로 전환.
          (note-container 의 마지막 자식 = 본문, 해시 클래스 대신 구조로 타겟) */
-      #note-container { display: block !important; }
+      #note-container { display: block !important; margin: 0 auto !important; }
       #note-container > *:last-child { display: block !important; }
       #note-container > *:last-child > * {
         display: inline-block !important;
