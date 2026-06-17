@@ -191,7 +191,7 @@ function untagWhiteBars() {
 // 인쇄 용지 폭이 화면보다 좁으면 블록이 다르게 wrap 되며 가사가 꼬인다(확장 없이도 발생).
 // 화면에서의 폭을 인쇄에서도 그대로 고정해 reflow 를 막고, zoom 으로 용지에 맞게 축소.
 // (zoom 은 transform:scale 과 달리 다중 페이지 분할이 정상 동작)
-const PRINT_TARGET_WIDTH = 720;  // A4/Letter 인쇄 가능 폭 근사 (px @96dpi)
+const PRINT_TARGET_WIDTH = 700;  // A4/Letter 인쇄 가능 폭 근사 (px @96dpi, 우측 여유)
 function scaleForPrint() {
   const root = document.querySelector('#note-container');
   if (!root) return;
@@ -297,11 +297,26 @@ function ensureStyle() {
 
     /* === 인쇄 (악보만 깔끔하게) === */
     @media print {
+      /* 2페이지 이후는 상단 여백 넉넉히(붙는 문제 방지).
+         1페이지는 타이틀이 상단 공간을 채우므로 작게 — 안 그러면 첫 구절이
+         page1 에 못 들어가 통째로 2페이지로 밀려남(break-inside:avoid) */
+      @page { margin: 18mm 10mm 12mm; }
+      @page :first { margin-top: 10mm; }
       /* 인쇄 직전 doPrint() 가 #note-container 조상 체인의 형제들에 표시한 속성 */
       [${ATTR_PRINT_HIDE}] { display: none !important; }
-      /* 악보 조상 체인의 위쪽 여백 누적 제거 (헤더 공간 확보용 padding 등) */
-      html, body { margin: 0 !important; padding: 0 !important; }
-      [${ATTR_PRINT_KEEP}] { margin-top: 0 !important; padding-top: 0 !important; }
+      /* 악보 조상 체인의 여백 제거 — 위쪽 누적 마진 + 좌측 들여쓰기(우측 잘림 유발) */
+      html, body { margin: 0 !important; padding: 0 !important; height: auto !important; overflow: visible !important; }
+      /* 고정 높이 스크롤 컨테이너(height:100vh; overflow:auto 등)가 악보를 1페이지로
+         가두는 것을 해제 → 전체 내용이 흐르며 여러 페이지로 분할되게 함 */
+      [${ATTR_PRINT_KEEP}] {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        position: static !important;
+      }
       /* 인쇄 버튼만 제외. KANTAN key 표시는 Original key 옆에 함께 인쇄 */
       .${PRINT_BTN_CLASS} { display: none !important; }
       /* 악보의 마디 바 등 배경 그래픽도 인쇄되도록 강제.
@@ -310,6 +325,12 @@ function ensureStyle() {
       *, *::before, *::after {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+      }
+      /* 한 구절(코드+바+가사 묶음)이 페이지 경계에서 갈라지지 않게.
+         chord-code-container 는 안정 클래스라 그 부모(스택)를 :has 로 특정 */
+      #note-container *:has(> .chord-code-container) {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
       }
       /* 다크 모드에서 흰 배경으로 그려진 마디 바 → 흰 용지에서 보이도록 회색으로 */
       [${ATTR_PRINT_BAR}] {
