@@ -326,6 +326,17 @@ function ensureStyle() {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
+      /* 악보 본문은 display:flex; flex-wrap:wrap 컨테이너인데, 크롬은 flex
+         컨테이너를 페이지 경계에서 분할하지 못해 통째로 다음 페이지로 밀린다
+         (긴 곡이 1페이지에 타이틀만 남는 원인). 줄바꿈 레이아웃은 유지하면서
+         페이지 분할이 되도록 block + 자식 inline-block 으로 전환.
+         (note-container 의 마지막 자식 = 본문, 해시 클래스 대신 구조로 타겟) */
+      #note-container { display: block !important; }
+      #note-container > *:last-child { display: block !important; }
+      #note-container > *:last-child > * {
+        display: inline-block !important;
+        vertical-align: top !important;
+      }
       /* 한 구절(코드+바+가사 묶음)이 페이지 경계에서 갈라지지 않게.
          chord-code-container 는 안정 클래스라 그 부모(스택)를 :has 로 특정 */
       #note-container *:has(> .chord-code-container) {
