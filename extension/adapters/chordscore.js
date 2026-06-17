@@ -12,8 +12,11 @@ import { detectKey } from '../lib/key-detector.js';
 const LOG = '[Instachorda/chordscore]';
 const KANTAN_CLASS = 'instachorda-kantan';
 const KEY_INDICATOR_CLASS = 'instachorda-key-indicator';
+const PRINT_BTN_CLASS = 'instachorda-print-btn';
 const ATTR_BOUND = 'data-ic-bound';        // 어댑터가 추적중인 var
 const ATTR_LAST_TEXT = 'data-ic-last';     // 직전 처리한 텍스트 (변경 감지용)
+const ATTR_PRINT_HIDE = 'data-ic-print-hide';  // 인쇄 시 숨길 형제 노드 표시
+const ATTR_PRINT_KEEP = 'data-ic-print-keep';  // 인쇄 시 남길 악보 조상 체인 표시
 
 // chordscore.com 은 플랫/샾을 유니코드 기호로 렌더함. 파서가 이해할 수 있는
 // ASCII b/# 로 정규화. 확인된 변형:
@@ -95,6 +98,140 @@ function updateKeyIndicator() {
   if (indicator.textContent !== text) indicator.textContent = text;
 }
 
+// 악보 인쇄 버튼을 "Original key" / KANTAN key 표시 옆에 주입.
+// (key-indicator 와 동일하게 매 renderAll 마다 누락 시 재주입 → React 가 지워도 자가 복구)
+function ensurePrintButton() {
+  if (document.querySelector(`.${PRINT_BTN_CLASS}`)) return;
+  const anchor =
+    document.querySelector(`.${KEY_INDICATOR_CLASS}`) || findOriginalKeyEl();
+  if (!anchor) return;
+  const btn = document.createElement('button');
+  btn.className = PRINT_BTN_CLASS;
+  btn.type = 'button';
+  btn.textContent = '🖨 악보 인쇄';
+  // 클릭 처리는 document 캡처 단계 위임(bindPrintDelegation)으로 함.
+  // 버튼별 리스너는 React 가 노드를 교체할 때 유실되므로 쓰지 않는다.
+  anchor.insertAdjacentElement('afterend', btn);
+}
+
+// 인쇄 버튼 클릭을 document 캡처 단계에서 위임 처리.
+// - 캡처 단계라 chordscore(React) 가 bubble 에서 stopPropagation 해도 먼저 실행됨
+// - 버튼 노드가 re-render 로 교체돼도 영향 없음 (한 번만 바인딩)
+let printDelegationBound = false;
+function bindPrintDelegation() {
+  if (printDelegationBound) return;
+  printDelegationBound = true;
+  document.addEventListener(
+    'click',
+    (e) => {
+      const t = e.target;
+      const btn = t && t.closest ? t.closest(`.${PRINT_BTN_CLASS}`) : null;
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      doPrint();
+    },
+    true,
+  );
+}
+
+// #note-container 의 조상 체인을 따라 올라가며 각 단계의 "형제" 노드에만
+// 인쇄 숨김 속성을 건다. 결과적으로 악보를 감싼 경로만 남고 나머지(헤더/네비/
+// 광고 등)는 인쇄에서 사라진다. visibility 트릭과 달리 빈 페이지가 생기지 않고
+// 현재 표시 모드(var/::after 규칙)도 그대로 보존된다.
+function markPrintHide() {
+  let el = getScoreRoot();
+  if (!el || el === document.body) return;  // 악보 컨테이너가 없으면 전체 인쇄
+  el.setAttribute(ATTR_PRINT_KEEP, '');
+  while (el && el.parentElement && el !== document.body) {
+    const parent = el.parentElement;
+    for (const sib of parent.children) {
+      if (sib !== el) sib.setAttribute(ATTR_PRINT_HIDE, '');
+    }
+    parent.setAttribute(ATTR_PRINT_KEEP, '');  // 조상의 위쪽 여백 누적 제거용
+    el = parent;
+  }
+}
+
+function unmarkPrintHide() {
+  document
+    .querySelectorAll(`[${ATTR_PRINT_HIDE}], [${ATTR_PRINT_KEEP}]`)
+    .forEach((e) => {
+      e.removeAttribute(ATTR_PRINT_HIDE);
+      e.removeAttribute(ATTR_PRINT_KEEP);
+    });
+}
+
+// 악보의 마디 바는 다크 모드에서 '흰색 배경'으로 그려진 요소다(css-appem1 등).
+// 흰 용지에 인쇄하면 흰 바가 묻혀 안 보이므로, 인쇄 직전 #note-container 안에서
+// 배경이 흰색(에 가까운) 요소를 찾아 표시해두고 인쇄 CSS 가 회색으로 칠한다.
+// (css-XXXX 해시 클래스는 빌드마다 바뀌므로 색으로 식별)
+const ATTR_PRINT_BAR = 'data-ic-print-bar';
+function tagWhiteBars() {
+  const root = document.querySelector('#note-container');
+  if (!root) return;
+  for (const el of root.querySelectorAll('*')) {
+    const bg = getComputedStyle(el).backgroundColor;
+    const m = bg.match(/^rgba?\(([^)]+)\)/);
+    if (!m) continue;
+    const p = m[1].split(',').map((s) => parseFloat(s));
+    const [r, g, b, a = 1] = p;
+    if (a > 0 && r > 200 && g > 200 && b > 200) {
+      el.setAttribute(ATTR_PRINT_BAR, '');
+    }
+  }
+}
+function untagWhiteBars() {
+  document
+    .querySelectorAll(`[${ATTR_PRINT_BAR}]`)
+    .forEach((e) => e.removeAttribute(ATTR_PRINT_BAR));
+}
+
+// chordscore 악보는 가사가 고정 픽셀 폭(width="394") + 공백 span 으로 정렬돼 있어,
+// 인쇄 용지 폭이 화면보다 좁으면 블록이 다르게 wrap 되며 가사가 꼬인다(확장 없이도 발생).
+// 화면에서의 폭을 인쇄에서도 그대로 고정해 reflow 를 막고, zoom 으로 용지에 맞게 축소.
+// (zoom 은 transform:scale 과 달리 다중 페이지 분할이 정상 동작)
+const PRINT_TARGET_WIDTH = 720;  // A4/Letter 인쇄 가능 폭 근사 (px @96dpi)
+function scaleForPrint() {
+  const root = document.querySelector('#note-container');
+  if (!root) return;
+  const w = root.offsetWidth;  // 화면 정상 레이아웃 폭 (DOM 변경 전에 측정)
+  if (!w) return;
+  root.style.setProperty('width', `${w}px`, 'important');
+  root.style.setProperty('zoom', String(Math.min(1, PRINT_TARGET_WIDTH / w)), 'important');
+}
+function unscaleForPrint() {
+  const root = document.querySelector('#note-container');
+  if (!root) return;
+  root.style.removeProperty('width');
+  root.style.removeProperty('zoom');
+}
+
+// 인쇄 격리를 beforeprint/afterprint 에 연결.
+// 우리 버튼뿐 아니라 브라우저 기본 인쇄(Ctrl+P)에서도 악보만 남도록 함
+// (chordscore 의 '연주목록'/'전체악보' 행 등 페이지 크롬 제거).
+// observer 는 attribute 변경을 감시하지 않으므로 렌더 루프를 유발하지 않음.
+let printHooksBound = false;
+function bindPrintHooks() {
+  if (printHooksBound) return;
+  printHooksBound = true;
+  window.addEventListener('beforeprint', () => {
+    scaleForPrint();  // 화면 폭 측정 후 고정 — DOM 숨김 전에 먼저
+    markPrintHide();
+    tagWhiteBars();
+  });
+  window.addEventListener('afterprint', () => {
+    unscaleForPrint();
+    unmarkPrintHide();
+    untagWhiteBars();
+  });
+}
+
+function doPrint() {
+  // 실제 격리는 beforeprint 훅이 수행. 버튼은 인쇄 트리거 역할만.
+  window.print();
+}
+
 function ensureStyle() {
   if (document.getElementById('instachorda-style')) return;
   const s = document.createElement('style');
@@ -137,6 +274,52 @@ function ensureStyle() {
       margin-top: 2px;
       color: #22c55e;
       font-weight: 600;
+    }
+    /* 악보 인쇄 버튼 */
+    .${PRINT_BTN_CLASS} {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      background: #22c55e;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      position: relative;     /* 다른 요소가 덮어 클릭이 막히지 않도록 */
+      z-index: 2147483647;
+      pointer-events: auto;
+    }
+    .${PRINT_BTN_CLASS}:hover { background: #16a34a; }
+
+    /* === 인쇄 (악보만 깔끔하게) === */
+    @media print {
+      /* 인쇄 직전 doPrint() 가 #note-container 조상 체인의 형제들에 표시한 속성 */
+      [${ATTR_PRINT_HIDE}] { display: none !important; }
+      /* 악보 조상 체인의 위쪽 여백 누적 제거 (헤더 공간 확보용 padding 등) */
+      html, body { margin: 0 !important; padding: 0 !important; }
+      [${ATTR_PRINT_KEEP}] { margin-top: 0 !important; padding-top: 0 !important; }
+      /* 인쇄 버튼만 제외. KANTAN key 표시는 Original key 옆에 함께 인쇄 */
+      .${PRINT_BTN_CLASS} { display: none !important; }
+      /* 악보의 마디 바 등 배경 그래픽도 인쇄되도록 강제.
+         (크롬은 기본적으로 배경색/배경이미지를 인쇄에서 생략함)
+         바가 #note-container 바깥 요소(예: css-appem1)일 수도 있어 전체에 적용 */
+      *, *::before, *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      /* 다크 모드에서 흰 배경으로 그려진 마디 바 → 흰 용지에서 보이도록 회색으로 */
+      [${ATTR_PRINT_BAR}] {
+        background-color: #999 !important;
+      }
+      /* 잉크 절약: KANTAN 배지를 배경 없이 검은 글씨로 */
+      #note-container var[data-kantan]:not([data-kantan=""])::after {
+        color: #000 !important;
+        background: none !important;
+      }
     }
   `;
   document.head.appendChild(s);
@@ -238,6 +421,7 @@ function renderAll() {
     if (vars.length === 0) return;
     const key = computeKey();
     updateKeyIndicator();
+    ensurePrintButton();
     if (!key) {
       console.warn(`${LOG} 키 감지 실패 — 변환 건너뜀`);
       return;
@@ -342,6 +526,8 @@ export async function init() {
   console.log(`${LOG} init`);
   await syncFromStorage();
   await resetUserKey();
+  bindPrintDelegation();
+  bindPrintHooks();
   listenStorage();
   // 악보가 비동기 렌더될 수 있어서 첫 시도 후 observer 로 후속 대응
   renderAll();

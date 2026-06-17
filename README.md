@@ -16,6 +16,7 @@
 - **3-모드 표시 토글** — 코드만 / 코드+KANTAN / KANTAN만 (기본값: KANTAN만)
 - 새 곡 진입 시 **기본 키는 자동(Auto) 으로 리셋** (사용자의 수동 지정은 해당 페이지 동안만 유지)
 - 곡 제목/키 표시 근처에 **감지된 KANTAN 키 표시** (chordscore 는 "Original key" 아래, ultimate-guitar·songsterr 는 곡 제목 아래)
+- **악보 인쇄 (chordscore.com)** — KANTAN 키 표시 옆 `🖨 악보 인쇄` 버튼으로 사이트 헤더·네비·광고를 제외하고 악보(`#note-container`)만 깔끔하게 인쇄. 현재 표시 모드(코드/KANTAN)를 그대로 반영하며, 인쇄 시 배지는 잉크 절약을 위해 검은 글씨로 출력
 
 ## KANTAN 표기 규칙
 
