@@ -342,10 +342,14 @@ function ensureStyle() {
         vertical-align: top !important;
       }
       /* 한 구절(코드+바+가사 묶음)이 페이지 경계에서 갈라지지 않게.
-         chord-code-container 는 안정 클래스라 그 부모(스택)를 :has 로 특정 */
+         chord-code-container 는 안정 클래스라 그 부모(스택)를 :has 로 특정.
+         상단에 살짝 패딩을 줘서, 직전 페이지 하단에 다음 줄 몇 픽셀이 새어
+         찍히고 그만큼 이 줄 상단이 잘리는 문제를 방지(마진은 페이지 경계에서
+         collapse 되므로 padding 사용) */
       #note-container *:has(> .chord-code-container) {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
+        padding-top: 6px !important;
       }
       /* 다크 모드에서 흰 배경으로 그려진 마디 바 → 흰 용지에서 보이도록 회색으로 */
       [${ATTR_PRINT_BAR}] {
