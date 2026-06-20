@@ -440,6 +440,51 @@ def test_오선_미감지_페이지는_필터_안함():
 
 
 # ---------------------------------------------------------------------------
+# 코드 행 정렬 필터 (filter_likely_chords) — 오선 미검출 시에도 동작
+# ---------------------------------------------------------------------------
+
+def test_코드행에_정렬된_단일문자_코드는_유지():
+    from instachorda.pdf_extract import filter_likely_chords
+
+    # 멀티문자 코드 2개 + 같은 y 밴드의 단일문자 'F' → 진짜 코드 행
+    hits = [
+        _hit("Gm", y0=100), _hit("Eb", y0=101), _hit("F", y0=100),
+    ]
+    out = filter_likely_chords(hits)
+    assert {h.text for h in out} == {"Gm", "Eb", "F"}
+
+
+def test_코드행_밖_흩어진_단일문자_제거():
+    from instachorda.pdf_extract import filter_likely_chords
+
+    # y=100 에 진짜 코드 행, y=140/180 에 정렬 안 된 단독 'A' (가사/장식 오탐)
+    hits = [
+        _hit("Gm", y0=100), _hit("Eb", y0=101), _hit("D7", y0=100),
+        _hit("A", y0=140),
+        _hit("A", y0=180),
+    ]
+    out = filter_likely_chords(hits)
+    assert {(h.text, h.y0) for h in out} == {("Gm", 100), ("Eb", 101), ("D7", 100)}
+
+
+def test_반복된_가짜_단일문자_밀집도_제거():
+    from instachorda.pdf_extract import filter_likely_chords
+
+    # 멀티문자 코드 없이 같은 y 밴드에 'A' 만 5개 (이음줄/멜리스마 오탐) → 전부 제거
+    hits = [_hit("A", y0=200 + i * 0.5) for i in range(5)]
+    out = filter_likely_chords(hits)
+    assert out == []
+
+
+def test_멀티문자_코드_전무_페이지는_전부_제거():
+    from instachorda.pdf_extract import filter_likely_chords
+
+    hits = [_hit("A", y0=100), _hit("B", y0=160)]
+    out = filter_likely_chords(hits)
+    assert out == []
+
+
+# ---------------------------------------------------------------------------
 # 텍스트 레이어 → OCR 자동 폴백 (extract_chord_hits_auto)
 # ---------------------------------------------------------------------------
 

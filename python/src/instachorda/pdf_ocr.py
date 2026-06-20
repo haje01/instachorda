@@ -518,8 +518,11 @@ def extract_chord_hits_auto(
         if text_hits:
             return text_hits, "text"
 
-    # 텍스트 레이어에서 못 찾았거나 강제 OCR — 벡터/스캔 악보로 간주
-    return extract_chord_hits_ocr(pdf_path, dpi=dpi), "ocr"
+    # 텍스트 레이어에서 못 찾았거나 강제 OCR — 벡터/스캔 악보로 간주.
+    # OCR 결과에도 코드 행 밀도 필터를 적용해, 오선 검출 실패(zone 필터 무력화)
+    # 시에도 가사/장식 오탐(흩어진 단일 문자)을 거른다.
+    ocr_hits = extract_chord_hits_ocr(pdf_path, dpi=dpi)
+    return filter_likely_chords(ocr_hits), "ocr"
 
 
 def _staff_strip(page, top: float):

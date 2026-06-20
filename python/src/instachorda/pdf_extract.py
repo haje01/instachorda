@@ -58,25 +58,66 @@ def extract_chord_hits(pdf_path: str) -> list[ChordHit]:
     return hits
 
 
-def filter_likely_chords(hits: Iterable[ChordHit]) -> list[ChordHit]:
-    """단일 문자 알파벳 코드(예: 'A', 'a') 가 가사로 끼었을 가능성을 줄이는 휴리스틱.
+# 같은 코드 행으로 묶을 y(세로) 허용 오차(PDF 포인트). 한 행 안 코드들의 박스
+# 높이는 ~7~13pt 라 중심 좌표는 몇 pt 내로 모이고, 행 사이 간격은 그보다 훨씬 큼.
+_CHORD_ROW_TOLERANCE = 10.0
 
-    - 페이지 안에 다중 문자 코드(예: 'Am', 'G7', 'F#') 가 충분히 있을 때만
-      단일 문자 코드를 유지. 코드가 거의 다중 문자(보통의 악보) 라면 안전.
-    - 다중 문자 코드 자체가 전혀 없으면 보수적으로 전부 버림.
+
+def _cluster_rows(hits: list[ChordHit]) -> list[list[ChordHit]]:
+    """히트를 y 중심 기준으로 가로 '행' 밴드로 군집화.
+
+    중심 좌표를 정렬해 인접 간격이 허용 오차를 넘으면 새 행으로 끊는다.
+    """
+    if not hits:
+        return []
+    ordered = sorted(hits, key=lambda h: (h.y0 + h.y1) / 2)
+    rows: list[list[ChordHit]] = [[ordered[0]]]
+    prev_center = (ordered[0].y0 + ordered[0].y1) / 2
+    for h in ordered[1:]:
+        center = (h.y0 + h.y1) / 2
+        if center - prev_center > _CHORD_ROW_TOLERANCE:
+            rows.append([])
+        rows[-1].append(h)
+        prev_center = center
+    return rows
+
+
+def _is_chord_row(row: list[ChordHit]) -> bool:
+    """이 행 밴드가 진짜 코드 행인지 다수결로 판정.
+
+    진짜 코드 행은 멀티문자 코드(Am, G7, Eb 등) 가 가로로 여러 개 늘어선다.
+    반면 가사/장식 오탐은 단일 문자('A')가 흩어지거나 같은 글자만 반복된다.
+    - 멀티문자 코드가 2개 이상 → 코드 행으로 인정.
+    - 멀티문자 코드 1개라도 있고 서로 다른 토큰이 3종 이상 → 코드 행으로 인정
+      (단일 문자 위주의 단순한 곡 보호; 같은 글자 반복 오탐은 종 수로 배제).
+    """
+    multi = sum(1 for h in row if len(h.text) >= 2)
+    if multi >= 2:
+        return True
+    distinct = len({h.text for h in row})
+    return multi >= 1 and distinct >= 3
+
+
+def filter_likely_chords(hits: Iterable[ChordHit]) -> list[ChordHit]:
+    """코드 행 밀도(다수결) 로 가사/장식 오탐을 거르는 휴리스틱.
+
+    오선(staff) 벡터 검출이 실패한 PDF 에서도 동작하도록, 오선 기하학 대신
+    1패스에서 잡힌 코드들이 이루는 가로 행 밀도로 코드 영역을 정한다.
+    멀티문자 코드가 모이는 행만 진짜 코드 행으로 보고, 그 행에 정렬된 히트만
+    남긴다. 코드 행 밖에 흩어진 단일 문자('A','E') 나 같은 글자만 반복되는
+    밀집 오탐은 제거된다.
+
+    페이지에 멀티문자 코드가 전혀 없으면 보수적으로 전부 버린다.
     """
     by_page: dict[int, list[ChordHit]] = {}
     for h in hits:
         by_page.setdefault(h.page_index, []).append(h)
 
     out: list[ChordHit] = []
-    for page_index, page_hits in by_page.items():
-        multi = [h for h in page_hits if len(h.text) >= 2]
-        if not multi:
-            # 가사 'a'/'A' 만 잔뜩 잡혔을 가능성 — 모두 버림
-            continue
-        # 다중 문자 코드가 있는 페이지라면 단일 문자도 그대로 신뢰
-        out.extend(page_hits)
+    for page_hits in by_page.values():
+        for row in _cluster_rows(page_hits):
+            if _is_chord_row(row):
+                out.extend(row)
     return out
 
 
